@@ -76,8 +76,8 @@
                         <!-- Notifications -->
                         <button class="btn btn-light position-relative">
                             <i class="bi bi-bell"></i>
-                            <span class="position-absolute top-0 start-100 translate-middle badge bg-danger">
-                                3
+                            <span class="position-absolute top-0 start-100 translate-middle badge bg-dark">
+                                0
                             </span>
                         </button>
 
@@ -102,6 +102,14 @@
                             <ul class="dropdown-menu dropdown-menu-end shadow-sm">
 
                                 <li>
+                                    <a href="#" class="dropdown-item" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                        <i class="bi bi-key me-2"></i> Change Password
+                                    </a>
+                                </li>
+
+                                <li><hr class="dropdown-divider"></li>
+
+                                <li>
                                     <form method="POST" action="/logout">
                                         @csrf
                                         <button class="dropdown-item text-danger">
@@ -111,6 +119,46 @@
                                 </li>
 
                             </ul>
+
+                            <div class="modal fade" id="changePasswordModal" tabindex="-1">
+                                <div class="modal-dialog">
+                                    <div class="modal-content rounded-4 border-0 shadow">
+
+                                        <div class="modal-header">
+                                            <h5 class="modal-title fw-bold">Change Password</h5>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+
+                                        <form id="changePasswordForm">
+                                            <div class="modal-body">
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Current Password</label>
+                                                    <input type="password" id="current_password" class="form-control" required>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">New Password</label>
+                                                    <input type="password" id="new_password" class="form-control" required>
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label">Confirm Password</label>
+                                                    <input type="password" id="confirm_password" class="form-control" required>
+                                                </div>
+
+                                            </div>
+
+                                            <div class="modal-footer">
+                                                <button type="submit" class="btn text-white" style="background:#E37216;">
+                                                    Update Password
+                                                </button>
+                                            </div>
+                                        </form>
+
+                                    </div>
+                                </div>
+                            </div>
 
                         </div>
 
@@ -134,6 +182,55 @@
             @include('layouts.partials.nav-links')
         </div>
     </div>
+
+    <script>
+        document.getElementById('changePasswordForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const current_password = document.getElementById('current_password').value;
+            const new_password = document.getElementById('new_password').value;
+            const confirm_password = document.getElementById('confirm_password').value;
+
+            if (new_password !== confirm_password) {
+                alert("Passwords do not match");
+                return;
+            }
+
+            try {
+                const res = await fetch('/dashboard/change-password', {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({
+                        current_password,
+                        new_password,
+                        new_password_confirmation: confirm_password
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    alert("Password updated successfully");
+
+                    // close modal
+                    bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+
+                    // reset form
+                    document.getElementById('changePasswordForm').reset();
+
+                } else {
+                    alert(data.message || "Failed to update password");
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert("Something went wrong");
+            }
+        });
+        </script>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     @stack('scripts')

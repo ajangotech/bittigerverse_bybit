@@ -125,5 +125,42 @@
             </div>
 
         </form>
+
+        <script>
+            document.getElementById('adForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const form = e.target;
+                const formData = new FormData(form);
+
+                // FIX CHECKBOXES (IMPORTANT)
+                const prefKeys = [
+                    "isKyc", "isEmail", "isMobile", "hasUnPostAd"
+                ];
+
+                prefKeys.forEach(key => {
+                    if (!formData.has(`tradingPreferenceSet[${key}]`)) {
+                        formData.append(`tradingPreferenceSet[${key}]`, 0);
+                    }
+                });
+
+                const res = await fetch('/dashboard/ads/store', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': token
+                    },
+                    body: formData
+                });
+
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    alert('Ad saved successfully');
+                    location.reload(); // simple refresh (you can optimize later)
+                } else {
+                    alert('Error saving ad');
+                }
+            });
+            </script>
     </div>
 </div>

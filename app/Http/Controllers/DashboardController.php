@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Ads;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Request;
 
 class DashboardController extends Controller
@@ -24,6 +25,31 @@ class DashboardController extends Controller
             'usersCount',
             'adsCount'
         ));
+    }
+
+    public function changePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'new_password' => 'required|min:6|confirmed',
+        ]);
+
+        $user = Auth::user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Current password is incorrect'
+            ]);
+        }
+
+        $user->password = Hash::make($request->new_password);
+        $user->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Password updated successfully'
+        ]);
     }
 
     public function logout(Request $request)

@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('password');
             $table->enum('status', ['active', 'inactive', 'suspended'])->default('active');
             $table->rememberToken();
+            $table->string('role')->default('user'); // admin | user
             $table->timestamps();
         });
 

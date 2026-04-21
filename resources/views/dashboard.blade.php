@@ -1,80 +1,73 @@
 @extends('layouts.app')
 
 @section('content')
+
 <div class="container-fluid py-4">
+
     <div class="row g-4">
+
+        <!-- MAIN CONTENT -->
         <div class="col-lg-8">
+
             <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4">
-                    <button class="btn btn-primary mb-4 w-500 px-4" data-bs-toggle="modal" data-bs-target="#adModal" style="background-color: #E37216; border: none;">
-                        <i class="bi bi-plus-lg me-2"></i> Create New Ad
-                    </button>
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h5 class="fw-bold mb-0">Active Advertisements</h5>
+
+                    <!-- ACTIONS -->
+                    <div class="d-flex gap-2 mb-4">
+                        <button id="refreshBtn" class="btn text-white px-4"
+                            style="background:#E37216; border:none;">
+                            
+                            <span id="refreshText">Refresh Ads</span>
+                            <span id="refreshSpinner" class="spinner-border spinner-border-sm d-none"></span>
+                        </button>
+
+                        <a href="{{ route('dashboard.payments') }}" class="btn btn-dark px-4">
+                            Payment IDs
+                        </a>
                     </div>
-                    
+
+                    <!-- HEADER -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Live Advertisements (API)</h5>
+                        <small class="text-muted">Fetched from Bybit API</small>
+                    </div>
+
+                    <!-- TABLE -->
                     <div class="table-responsive">
-                        <table id="adsTable" class="table table-bordered align-middle">
+                        <table class="table table-bordered align-middle" id="adsTable">
+
                             <thead class="text-muted small text-uppercase">
-                                <tr><th>Pair</th><th>Price</th><th>Limit</th><th>Status</th><th>Actions</th></tr>
+                                <tr>
+                                    <th>Pair</th>
+                                    <th>Price</th>
+                                    <th>Limit</th>
+                                    <th>Status</th>
+                                </tr>
                             </thead>
+
                             <tbody id="adsTableBody">
-                                @forelse($ads as $ad)
-                                    <tr id="ad-row-{{ $ad->id }}">
-
-                                        <td>
-                                            <div class="fw-bold">{{ $ad->pair }}</div>
-                                            <small class="text-muted">ID: {{ $ad->ads_id }}</small>
-                                        </td>
-
-                                        <td>
-                                            <span class="fw-bold text-success">
-                                                ₦{{ number_format($ad->price, 2) }}
-                                            </span>
-                                        </td>
-
-                                        <td>
-                                            <small>
-                                                {{ $ad->min_amount }} - {{ $ad->max_amount }}
-                                            </small>
-                                        </td>
-
-                                        <td>
-                                            @if($ad->action_type == 'ACTIVE')
-                                                <span class="badge bg-success">Active</span>
-                                            @elseif($ad->action_type == 'MODIFY')
-                                                <span class="badge bg-warning text-dark">Pending</span>
-                                            @else
-                                                <span class="badge bg-secondary">Inactive</span>
-                                            @endif
-                                        </td>
-
-                                        <td>
-                                            <button class="btn btn-sm btn-outline-danger"
-                                                onclick="deleteAd({{ $ad->id }})">
-                                                Delete
-                                            </button>
-                                        </td>
-
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">
-                                            No advertisements found
-                                        </td>
-                                    </tr>
-                                @endforelse
+                                <tr>
+                                    <td colspan="5" class="text-center py-4 text-muted">
+                                        Loading ads...
+                                    </td>
+                                </tr>
                             </tbody>
+
                         </table>
                     </div>
+
                 </div>
             </div>
         </div>
 
+        <!-- SIDEBAR -->
         <div class="col-lg-4">
+
             <div class="position-sticky" style="top: 20px;">
+
+                <!-- STATS -->
                 <div class="row g-3 mb-4">
-                    <!-- USERS -->
+
                     <div class="col-6">
                         <div class="card p-3 border-0 shadow-sm rounded-4 text-center">
                             <small class="text-muted">Total Users</small>
@@ -82,105 +75,217 @@
                         </div>
                     </div>
 
-                    <!-- ADS -->
                     <div class="col-6">
                         <div class="card p-3 border-0 shadow-sm rounded-4 text-center">
-                            <small class="text-muted">Total Ads</small>
-                            <h4 class="fw-bold mt-1 text-primary">{{ $adsCount }}</h4>
+                            <small class="text-muted">Total Ads (Live)</small>
+                            <h4 class="fw-bold mt-1 text-primary" id="adsCount">0</h4>
                         </div>
                     </div>
+
                 </div>
 
+                <!-- QUICK ACTIONS -->
                 <div class="card border-0 shadow-sm rounded-4 p-4">
                     <h6 class="fw-bold mb-3">Quick Actions</h6>
-                    <div class="card border-0 shadow-sm rounded-4 p-4">
-                        <div class="d-grid gap-2">
 
-                            <a href="/dashboard/users" class="btn btn-light text-start">
-                                <i class="bi bi-people me-2"></i> Manage Users
-                            </a>
+                    <div class="d-grid gap-2">
 
-                            <a href="/dashboard/ads" class="btn btn-light text-start">
-                                <i class="bi bi-megaphone me-2"></i> Manage Ads
-                            </a>
+                        <a href="/dashboard/users" class="btn btn-light text-start">
+                            Manage Users
+                        </a>
 
-                            <button onclick="location.reload()" class="btn btn-light text-start">
-                                <i class="bi bi-arrow-clockwise me-2"></i> Refresh Page
-                            </button>
-                        </div>
+                        <a href="/dashboard/ads" class="btn btn-light text-start">
+                            Manage Ads
+                        </a>
+
+                        <button onclick="loadAds()" class="btn btn-light text-start">
+                            Reload API Data
+                        </button>
+
                     </div>
                 </div>
+
             </div>
+
         </div>
+
     </div>
 </div>
 
-<style>
-    /* Typography */
-    body { font-family: 'Inter', system-ui, sans-serif; }
-    
-    /* Rounded Cards */
-    .rounded-4 { border-radius: 1rem !important; }
-    
-    /* Inputs */
-    .form-control:focus {
-        border-color: #E37216;
-        box-shadow: 0 0 0 0.25rem rgba(227, 114, 22, 0.1);
-    }
-    
-    /* Toggle Switches */
-    .form-check-input:checked {
-        background-color: #E37216;
-        border-color: #E37216;
-    }
+@endsection
 
-    /* Table Spacing */
-    .table th { background: transparent !important; }
-    .table td { padding: 1rem; }
+
+{{-- ===================== --}}
+{{-- STYLES --}}
+{{-- ===================== --}}
+@push('styles')
+<style>
+    body { font-family: Inter, sans-serif; }
+
+    .rounded-4 { border-radius: 1rem !important; }
+
+    .table td { padding: 0.9rem; }
+
+    .badge {
+        font-size: 12px;
+        padding: 6px 10px;
+    }
 </style>
+@endpush
+
+
+{{-- ===================== --}}
+{{-- SCRIPT --}}
+{{-- ===================== --}}
+@push('scripts')
 
 <script>
-    const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
 
-    async function deleteAd(id) {
-        if (!confirm("Are you sure you want to delete this ad?")) return;
+const API_URL = "{{ env('API_URL') }}";
+const API_KEY = "{{ auth()->user()->bybit_api_key }}";
+const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
-        const res = await fetch(`/dashboard/ads/${id}`, {
-            method: "DELETE",
+let adsData = [];
+
+// =====================
+// LOADING UI
+// =====================
+function setLoading(state) {
+    const btn = document.getElementById("refreshBtn");
+    const text = document.getElementById("refreshText");
+    const spinner = document.getElementById("refreshSpinner");
+
+    btn.disabled = state;
+
+    if (state) {
+        spinner.classList.remove("d-none");
+        text.innerText = "Loading...";
+    } else {
+        spinner.classList.add("d-none");
+        text.innerText = "Refresh Ads";
+    }
+}
+
+// =====================
+// FETCH ADS FROM API
+// =====================
+async function loadAds() {
+
+    setLoading(true);
+
+    try {
+        const res = await fetch(`${API_URL}/ads`, {
+            method: "POST",
             headers: {
-                "X-CSRF-TOKEN": token,
                 "Content-Type": "application/json"
-            }
+            },
+            body: JSON.stringify({
+                api_key: API_KEY,
+                api_secret: API_SECRET
+            })
         });
 
         const data = await res.json();
 
-        if (data.status === "success") {
-            document.getElementById(`ad-row-${id}`).remove();
-        } else {
-            alert("Failed to delete ad");
-        }
+        adsData = data?.result?.items || [];
+
+        renderTable();
+
+        // update count
+        document.getElementById("adsCount").innerText = adsData.length;
+
+    } catch (err) {
+        console.error(err);
+
+        document.getElementById("adsTableBody").innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-danger py-4">
+                    Failed to load ads
+                </td>
+            </tr>
+        `;
     }
 
-    // Optional quick edit hook (connect later to modal)
-    function editAd(id, price) {
-        document.getElementById('ad_id').value = id;
-        document.getElementById('priceInput').value = price;
+    setLoading(false);
+}
 
-        new bootstrap.Modal(document.getElementById('adModal')).show();
+// =====================
+// RENDER TABLE
+// =====================
+function renderTable() {
+
+    const tbody = document.getElementById("adsTableBody");
+
+    if (!adsData.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-muted py-4">
+                    No ads found
+                </td>
+            </tr>
+        `;
+        return;
     }
-</script>
 
-<script>
-    $(document).ready(function () {
-        $('#adsTable').DataTable({
-            pageLength: 10,
-            ordering: true,
-            searching: true,
-            responsive: true
-        });
+    tbody.innerHTML = "";
+
+    adsData.forEach(ad => {
+
+        const status = ad.showStatus || (ad.isOnline ? "ONLINE" : "OFFLINE");
+
+        let color = "secondary";
+        if (status === "ONLINE") color = "success";
+        else if (status === "HIDDEN") color = "warning";
+        else if (status === "OFFLINE") color = "dark";
+
+        tbody.innerHTML += `
+            <tr>
+
+                <td>
+                    <div class="fw-bold">${ad.tokenId}/${ad.currencyId}</div>
+                    <small class="text-muted">${ad.id}</small>
+                </td>
+
+                <td>
+                    <span class="fw-bold text-success">
+                        ₦${parseFloat(ad.price).toLocaleString()}
+                    </span>
+                </td>
+
+                <td>
+                    <small>
+                        ${ad.minAmount || '-'} - ${ad.maxAmount || '-'}
+                    </small>
+                </td>
+
+                <td>
+                    <span class="badge bg-${color}">
+                        ${status}
+                    </span>
+                </td>
+
+            </tr>
+        `;
     });
+}
+
+
+
+// =====================
+// EDIT HOOK (OPTIONAL)
+// =====================
+function editAd(id) {
+    const ad = adsData.find(a => a.id === id);
+    console.log("Selected Ad:", ad);
+}
+
+// =====================
+// INIT
+// =====================
+document.addEventListener("DOMContentLoaded", loadAds);
+
+document.getElementById("refreshBtn").addEventListener("click", loadAds);
+
 </script>
 
-@include('layouts.partials.ad-modal')
-@endsection
+@endpush

@@ -14,10 +14,10 @@ return new class extends Migration
             $table->string('ads_id')->unique();
             $table->string('pair');
             $table->tinyInteger('price_type')->default(0);
-            $table->decimal('price', 18, 8)->nullable();
-            $table->decimal('premium', 10, 4)->nullable();
-            $table->decimal('min_amount', 18, 8)->nullable();
-            $table->decimal('max_amount', 18, 8)->nullable();
+            $table->decimal('price', 18, 3)->nullable();
+            $table->integer('premium')->nullable();
+            $table->decimal('min_amount', 18, 4)->nullable();
+            $table->decimal('max_amount', 18, 4)->nullable();
             $table->string('remark')->nullable();
             $table->string('action_type')->nullable(); 
             $table->integer('quantity')->nullable();
