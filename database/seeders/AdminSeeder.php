@@ -18,8 +18,8 @@ class AdminSeeder extends Seeder
                 'first_name' => 'Muhsin',
                 'last_name' => 'Gambo',
 
-                'bybit_api_key' => 'pSZzmfSlToyG3U0pEq',
-                'bybit_api_secret' => '2Y1w1TUeJiynpSBifXglOlpMZktjkqEOcufD',
+                'bybit_api_key' => env('BYBIT_API_KEY'),
+                'bybit_api_secret' => env('BYBIT_API_SECRET'),
 
                 'password' => Hash::make('0249+!.a5s56779'), // 🔐 change later
 
