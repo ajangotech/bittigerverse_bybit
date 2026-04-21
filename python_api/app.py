@@ -8,6 +8,7 @@ import os
 load_dotenv()
 
 app = Flask(__name__)
+application = app
 
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:8000")
 
@@ -43,7 +44,13 @@ def get_api(data):
         api_secret=data.get("api_secret")
     )
 
-
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({
+        "status": "success",
+        "message": "Welcome to ByBit API",
+        "version": "1.0"
+    })
 # =========================
 # 📢 UPDATE AD
 # =========================
