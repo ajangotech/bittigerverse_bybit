@@ -259,7 +259,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
             if (res.ok && !result.error) {
                 currentPrice.innerText = priceInput.value;
-                showToast("Ad price updated successfully", "success");
+                showToast("Ad Price Updated Successfully", "success");
+                price.value = '';
             } else {
                 showToast(result.error || "Update failed", "error");
             }

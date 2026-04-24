@@ -4,16 +4,17 @@ from flask_cors import CORS
 from functools import wraps
 from dotenv import load_dotenv
 import os
+import threading
+import webbrowser
 
 load_dotenv()
 
 app = Flask(__name__)
 application = app
 
-ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:8000")
-
-CORS(app, origins=[ALLOWED_ORIGINS])
-
+#ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://127.0.0.1:8080")
+#CORS(app, origins=[ALLOWED_ORIGINS])
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # =========================
 # 🔐 BASIC SECURITY LAYER
@@ -44,6 +45,7 @@ def get_api(data):
         api_secret=data.get("api_secret")
     )
 
+
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({
@@ -51,6 +53,7 @@ def home():
         "message": "Welcome to ByBit API",
         "version": "1.0"
     })
+
 # =========================
 # 📢 UPDATE AD
 # =========================
@@ -268,5 +271,10 @@ def pending_orders(data):
 # =========================
 # 🚀 RUN APP
 # =========================
+def run_flask():
+    app.run(host="127.0.0.1", port=8080, debug=False)
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    # start server
+    threading.Thread(target=run_flask).start()

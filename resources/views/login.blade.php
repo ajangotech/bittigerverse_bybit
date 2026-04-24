@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+   <meta name="csrf-token" content="{{ csrf_token() }}"> <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Login | Admin System</title>
     
+    <link rel="shortcut icon" href="/logo.png" type="image/x-icon">
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
@@ -93,7 +95,6 @@
                 <input type="password" class="form-control" name="password" placeholder="••••••••" required>
                 <div id="passwordError" class="invalid-feedback"></div>
             </div>
-
             <button type="submit" class="btn btn-primary w-100" id="submitBtn">
                 <span class="button-text">Sign In</span>
                 <span class="spinner-border spinner-border-sm d-none ms-2" id="btnSpinner"></span>

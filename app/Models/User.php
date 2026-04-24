@@ -27,9 +27,7 @@ class User extends Authenticatable implements JWTSubject
         'bybit_api_key',
         'bybit_api_secret',
         'status',
-        'role',
-        'bybit_api_key',
-        'bybit_api_secret',
+        'role'
     ];
 
     /**
