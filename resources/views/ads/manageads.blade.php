@@ -255,12 +255,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const result = await res.json();
 
-            console.log("UPDATE RESPONSE:", result);
+            //console.log("UPDATE RESPONSE:", result);
 
             if (res.ok && !result.error) {
                 currentPrice.innerText = priceInput.value;
                 showToast("Ad Price Updated Successfully", "success");
-                price.value = '';
+                //price.value = '';
             } else {
                 showToast(result.error || "Update failed", "error");
             }
