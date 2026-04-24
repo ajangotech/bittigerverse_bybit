@@ -63,8 +63,6 @@ def update_ad(data):
     try:
         api = get_api(data)
 
-        print("PAYLOAD RECEIVED:", data)
-
         # Extract payment IDs
         payment_ids = [
             p.get("id") for p in data.get("paymentTerms", [])
