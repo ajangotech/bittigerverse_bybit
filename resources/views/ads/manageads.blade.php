@@ -120,13 +120,12 @@
 @endsection
 
 <script>
-
 document.addEventListener("DOMContentLoaded", function () {
 
     // =====================
     // CONFIG
     // =====================
-    const API_URL = "{{ $apiUrl }}"; // base URL ONLY
+    const API_URL = "{{ $apiUrl }}";
     const API_KEY = "{{ auth()->user()->bybit_api_key }}";
     const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
@@ -142,14 +141,28 @@ document.addEventListener("DOMContentLoaded", function () {
     const maxText = document.getElementById('maxText');
     const currentPrice = document.getElementById('currentPrice');
     const statusText = document.getElementById('statusText');
-    const updateBtn = document.getElementById('updateBtn');
 
     let adsData = [];
+    let debounceTimer = null;
+    let lastSubmittedPrice = null;
 
-    // safety check
     if (!select) {
-        console.error("adsSelect not found in DOM");
+        console.error("adsSelect not found");
         return;
+    }
+
+    // =====================
+    // TOAST
+    // =====================
+    function showToast(message, type = "success") {
+        const toast = document.getElementById("toast");
+
+        toast.className = "app-toast show " + type;
+        toast.innerText = message;
+
+        setTimeout(() => {
+            toast.className = "app-toast";
+        }, 2500);
     }
 
     // =====================
@@ -159,9 +172,7 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             const res = await fetch(`${API_URL}/ads`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     api_key: API_KEY,
                     api_secret: API_SECRET
@@ -170,8 +181,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const data = await res.json();
 
-            console.log("ADS RESPONSE:", data);
-
             adsData = data?.result?.items || [];
 
             select.innerHTML = `<option value="">-- Select Ad --</option>`;
@@ -179,57 +188,71 @@ document.addEventListener("DOMContentLoaded", function () {
             adsData.forEach(ad => {
                 select.innerHTML += `
                     <option value="${ad.id}">
-                        ${ad.tokenId}/${ad.currencyId} | ₦${ad.price}
+                        ${ad.tokenId}/${ad.currencyId} | ${ad.price}
                     </option>
                 `;
             });
 
         } catch (err) {
             console.error("Failed to load ads", err);
+            showToast("Failed to load ads", "error");
         }
     }
 
     loadAds();
 
     // =====================
-    // SELECT AD EVENT
+    // SELECT AD
     // =====================
     select.addEventListener('change', function () {
 
         const ad = adsData.find(a => a.id === this.value);
-
         if (!ad) return;
 
         adId.value = ad.id;
+
         priceInput.value = ad.price;
+        currentPrice.innerText = ad.price;
 
         pairText.innerText = `${ad.tokenId}/${ad.currencyId}`;
         minText.innerText = ad.minAmount ?? '---';
         maxText.innerText = ad.maxAmount ?? '---';
-        currentPrice.innerText = ad.price;
         statusText.innerText = ad.showStatus ?? ad.status ?? '---';
+
+        // UX: ready for paste immediately
+        setTimeout(() => {
+            priceInput.focus();
+            priceInput.select();
+        }, 100);
     });
 
-    function showToast(message, type = "success") {
-        const toast = document.getElementById("toast");
+    // =====================
+    // AUTO UPDATE ON INPUT (PASTE + TYPE)
+    // =====================
+    priceInput.addEventListener('input', function () {
 
-        toast.className = "app-toast show " + type;
-        toast.innerText = message;
+        const value = parseFloat(this.value);
 
-        setTimeout(() => {
-            toast.className = "app-toast";
-        }, 3000);
-    }
+        // update UI instantly
+        currentPrice.innerText = this.value || '---';
+
+        // validation
+        if (!adId.value || isNaN(value)) return;
+
+        // prevent duplicate API calls
+        if (value === lastSubmittedPrice) return;
+
+        clearTimeout(debounceTimer);
+
+        debounceTimer = setTimeout(() => {
+            updatePrice(value);
+        }, 500); // smooth + fast
+    });
 
     // =====================
     // UPDATE PRICE
     // =====================
-    async function updatePrice() {
-
-        if (!adId.value) {
-            showToast("Please select an ad first", "error");
-            return;
-        }
+    async function updatePrice(newPrice) {
 
         const ad = adsData.find(a => a.id === adId.value);
         if (!ad) {
@@ -239,7 +262,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const payload = {
             ...ad,
-            price: parseFloat(priceInput.value),
+            price: parseFloat(newPrice),
             api_key: API_KEY,
             api_secret: API_SECRET
         };
@@ -247,41 +270,26 @@ document.addEventListener("DOMContentLoaded", function () {
         try {
             const res = await fetch(`${API_URL}/update-ad`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload)
             });
 
             const result = await res.json();
 
-            console.log("UPDATE RESPONSE:", result);
-
             if (res.ok && !result.error) {
-                currentPrice.innerText = priceInput.value;
-                showToast("Ad Price Updated Successfully", "success");
-                priceInput.value = '';
+                lastSubmittedPrice = newPrice;
+                currentPrice.innerText = newPrice;
+
+                showToast("Price Updated", "success");
             } else {
                 showToast(result.error || "Update failed", "error");
             }
 
         } catch (err) {
             console.error("Update failed", err);
-            showToast("Network error while updating", "error");
+            showToast("Network error", "error");
         }
     }
 
-    // =====================
-    // EVENTS
-    // =====================
-    updateBtn?.addEventListener('click', updatePrice);
-
-    priceInput?.addEventListener('change', updatePrice);
-
-    priceInput?.addEventListener('paste', () => {
-        setTimeout(updatePrice, 300);
-    });
-
 });
-
 </script>
