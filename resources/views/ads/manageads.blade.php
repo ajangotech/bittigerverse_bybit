@@ -211,7 +211,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         adId.value = ad.id;
 
-        priceInput.value = ad.price;
+        //priceInput.value = ad.price;
         currentPrice.innerText = ad.price;
 
         pairText.innerText = `${ad.tokenId}/${ad.currencyId}`;
@@ -284,11 +284,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 priceInput.value = ''
             } else {
                 showToast(result.error || "Update failed", "error");
+                priceInput.value = ''
             }
 
         } catch (err) {
             console.error("Update failed");
             showToast("Network error", "error");
+            priceInput.value = ''
         }
     }
 
