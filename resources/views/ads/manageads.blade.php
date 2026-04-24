@@ -281,12 +281,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 currentPrice.innerText = newPrice;
 
                 showToast("Price Updated", "success");
+                priceInput.value = ''
             } else {
                 showToast(result.error || "Update failed", "error");
             }
 
         } catch (err) {
-            console.error("Update failed", err);
+            console.error("Update failed");
             showToast("Network error", "error");
         }
     }
