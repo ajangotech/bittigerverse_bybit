@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 showToast("Price Updated", "success");
                 priceInput.value = ''
             } else {
-                showToast(result.error || "Update failed", "error");
+                showToast("Update failed", "error");
                 priceInput.value = ''
             }
 
