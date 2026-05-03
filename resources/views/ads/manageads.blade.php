@@ -87,33 +87,43 @@
 
         </div>
 
-        <!-- RIGHT: QUICK PRICE UPDATE -->
         <div class="col-md-5">
 
-            <div class="card ads-card p-4">
-                <h5 class="fw-bold">Quick Price Update</h5>
+            <div class="card ads-card p-4 border-0 shadow-sm rounded-4">
+                <h5 class="fw-bold mb-4">Quick Price Update</h5>
 
                 <input type="hidden" id="adId">
 
-                <label class="form-label mt-3">Price</label>
-                <input 
-                    type="number" 
-                    id="priceInput" 
-                    class="form-control fast-input"
-                    placeholder="Enter new price"
-                >
+                <div class="form-group mb-4">
+                    <label class="form-label fw-semibold text-muted text-uppercase small mb-2">
+                        Set New Price
+                    </label>
+                    
+                    <div class="input-group input-group-lg shadow-sm rounded-3">
+                        <span class="input-group-text bg-white border-end-0 fs-3 fw-bold text-black-50">
+                            ₦
+                        </span>
+                        
+                        <input 
+                            type="number" 
+                            id="priceInput" 
+                            class="form-control border-start-0 ps-0 fast-input fs-2 fw-bolder text-dark"
+                            placeholder="0.00"
+                            style="box-shadow: none;" 
+                        >
+                    </div>
+                </div>
 
-                <button id="updateBtn" class="btn w-100 mt-3 text-white" style="background:#E37216;">
+                <button id="updateBtn" class="btn btn-lg w-100 mt-2 text-white fw-bold rounded-3 shadow-sm" style="background:#E37216;">
                     Update Price
                 </button>
 
-                <div class="mt-3 text-muted small">
-                    Updates are sent directly to API.
+                <div class="mt-3 text-muted small text-center">
+                    Updates are sent directly to the API.
                 </div>
             </div>
 
         </div>
-
     </div>
 </div>
 
