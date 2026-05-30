@@ -267,6 +267,151 @@ def pending_orders(data):
 
 
 # =========================
+# 📊 MARKET ANALYSIS
+# =========================
+@app.route("/api/analyze-market", methods=["POST"])
+@require_api_keys
+def analyze_market(data):
+    try:
+        api = get_api(data)
+
+        token_id = data.get("tokenId", "BTC")
+        currency_id = data.get("currencyId", "USD")
+        side = str(data.get("side", "0"))  # 0=BUY, 1=SELL
+        min_amount = float(data.get("minAmount", 0))
+        margin_pct = float(data.get("marginPct", 4))
+
+        ads = api.get_online_ads(
+            tokenId=token_id,
+            currencyId=currency_id,
+            side=side,
+            size="30"
+        )
+
+        items = []
+
+        if isinstance(ads, dict):
+            items = ads.get("result", {}).get("items", [])
+
+        competitors = []
+
+        for ad in items:
+            try:
+                price = float(ad.get("price", 0))
+
+                if price <= 0:
+                    continue
+
+                ad_min = float(ad.get("minAmount", 0))
+                ad_max = float(ad.get("maxAmount", 0))
+
+                # Skip ads that cannot satisfy the requested amount
+                if min_amount > 0 and ad_max < min_amount:
+                    continue
+
+                competitors.append({
+                    "id": ad.get("id"),
+                    "nickName": ad.get("nickName"),
+                    "price": price,
+                    "minAmount": ad_min,
+                    "maxAmount": ad_max,
+                    "quantity": ad.get("quantity"),
+                    "recentOrderNum": ad.get("recentOrderNum"),
+                    "recentExecuteRate": ad.get("recentExecuteRate"),
+                    "paymentPeriod": ad.get("paymentPeriod")
+                })
+
+            except Exception:
+                continue
+
+        if not competitors:
+            return jsonify({
+                "status": False,
+                "error": "No valid competitor ads found"
+            }), 404
+
+        # BUY Ads -> Highest price first
+        if side == "0":
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["price"],
+                reverse=True
+            )
+
+            top_competitor_price = competitors[0]["price"]
+
+            # Stay above competitors
+            recommended_price = top_competitor_price * (
+                1 + (margin_pct / 100)
+            )
+
+        # SELL Ads -> Lowest price first
+        else:
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["price"]
+            )
+
+            top_competitor_price = competitors[0]["price"]
+
+            # Stay below competitors
+            recommended_price = top_competitor_price * (
+                1 - (margin_pct / 100)
+            )
+
+        top_10 = competitors[:30]
+
+        return jsonify({
+            "status": True,
+            "tokenId": token_id,
+            "currencyId": currency_id,
+            "side": side,
+            "ads_found": len(competitors),
+
+            "top_competitor_price": round(
+                top_competitor_price, 2
+            ),
+
+            "margin_percent": margin_pct,
+
+            "recommended_price": round(
+                recommended_price, 2
+            ),
+
+            "top_10_competitors": top_10
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": False,
+            "error": str(e)
+        }), 500
+
+# =========================
+# 🌐 ONLINE ADS
+# =========================
+@app.route("/api/online-ads", methods=["POST"])
+@require_api_keys
+def online_ads(data):
+    try:
+        api = get_api(data)
+
+        result = api.get_online_ads(
+            tokenId=data.get("tokenId", "BTC"),
+            currencyId=data.get("currencyId", "USD"),
+            side=data.get("side", "0")  # 0 = Buy, 1 = Sell
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+
+
+# =========================
 # 🚀 RUN APP
 # =========================
 def run_flask():

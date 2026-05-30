@@ -39,6 +39,11 @@ class AdsController extends Controller
         ]);
     }
 
+    public function manageAdsList()
+    {
+        return view('ads.manageadslist');
+    }
+
     public function store(Request $request)
     {
         DB::beginTransaction();

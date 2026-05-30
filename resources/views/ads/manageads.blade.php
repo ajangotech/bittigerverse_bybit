@@ -125,184 +125,287 @@
 
         </div>
     </div>
+
+    <div class="row g-4">
+
+        <!-- LEFT: ADS LIST -->
+        <div class="col-md-7">
+
+            <div class="card ads-card p-3">
+                <h5 class="fw-bold mb-3">Auto Select Update Price Ads (Live API)</h5>
+
+                <select id="autoselectUpdateAds" class="form-select form-select-lg">
+                    <option value="">Loading ads...</option>
+                </select>
+
+                <div class="mt-4 p-3 border rounded-3 bg-light">
+                    
+                </div>
+            </div>
+
+        </div>
+
+        
+    </div>
+
+    
 </div>
 
 @endsection
 
 <script>
-document.addEventListener("DOMContentLoaded", function () {
+    document.addEventListener("DOMContentLoaded", function () {
 
-    // =====================
-    // CONFIG
-    // =====================
-    const API_URL = "{{ $apiUrl }}";
-    const API_KEY = "{{ auth()->user()->bybit_api_key }}";
-    const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
+        // =====================
+        // CONFIG
+        // =====================
+        const API_URL = "{{ $apiUrl }}";
+        const API_KEY = "{{ auth()->user()->bybit_api_key }}";
+        const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
-    // =====================
-    // DOM ELEMENTS
-    // =====================
-    const select = document.getElementById('adsSelect');
-    const priceInput = document.getElementById('priceInput');
-    const adId = document.getElementById('adId');
+        // =====================
+        // DOM ELEMENTS
+        // =====================
+        const select = document.getElementById('adsSelect');
+        const priceInput = document.getElementById('priceInput');
+        const adId = document.getElementById('adId');
 
-    const pairText = document.getElementById('pairText');
-    const minText = document.getElementById('minText');
-    const maxText = document.getElementById('maxText');
-    const currentPrice = document.getElementById('currentPrice');
-    const statusText = document.getElementById('statusText');
+        const pairText = document.getElementById('pairText');
+        const minText = document.getElementById('minText');
+        const maxText = document.getElementById('maxText');
+        const currentPrice = document.getElementById('currentPrice');
+        const statusText = document.getElementById('statusText');
 
-    let adsData = [];
-    let debounceTimer = null;
-    let lastSubmittedPrice = null;
+        let adsData = [];
+        let debounceTimer = null;
+        let lastSubmittedPrice = null;
 
-    if (!select) {
-        console.error("adsSelect not found");
-        return;
-    }
+        const autoSelect = document.getElementById('autoselectUpdateAds');
+        let marketData = null;
+        let autoUpdateInterval = null;
 
-    // =====================
-    // TOAST
-    // =====================
-    function showToast(message, type = "success") {
-        const toast = document.getElementById("toast");
-
-        toast.className = "app-toast show " + type;
-        toast.innerText = message;
-
-        setTimeout(() => {
-            toast.className = "app-toast";
-        }, 2500);
-    }
-
-    // =====================
-    // LOAD ADS
-    // =====================
-    async function loadAds() {
-        try {
-            const res = await fetch(`${API_URL}/ads`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    api_key: API_KEY,
-                    api_secret: API_SECRET
-                })
-            });
-
-            const data = await res.json();
-
-            adsData = data?.result?.items || [];
-
-            select.innerHTML = `<option value="">-- Select Ad --</option>`;
-
-            adsData.forEach(ad => {
-                select.innerHTML += `
-                    <option value="${ad.id}">
-                        ${ad.tokenId}/${ad.currencyId} | ${ad.price}
-                    </option>
-                `;
-            });
-
-        } catch (err) {
-            console.error("Failed to load ads", err);
-            showToast("Failed to load ads", "error");
-        }
-    }
-
-    loadAds();
-
-    // =====================
-    // SELECT AD
-    // =====================
-    select.addEventListener('change', function () {
-
-        const ad = adsData.find(a => a.id === this.value);
-        if (!ad) return;
-
-        adId.value = ad.id;
-
-        //priceInput.value = ad.price;
-        currentPrice.innerText = ad.price;
-
-        pairText.innerText = `${ad.tokenId}/${ad.currencyId}`;
-        minText.innerText = ad.minAmount ?? '---';
-        maxText.innerText = ad.maxAmount ?? '---';
-        statusText.innerText = ad.showStatus ?? ad.status ?? '---';
-
-        // UX: ready for paste immediately
-        setTimeout(() => {
-            priceInput.focus();
-            priceInput.select();
-        }, 100);
-    });
-
-    // =====================
-    // AUTO UPDATE ON INPUT (PASTE + TYPE)
-    // =====================
-    priceInput.addEventListener('input', function () {
-
-        const value = parseFloat(this.value);
-
-        // update UI instantly
-        currentPrice.innerText = this.value || '---';
-
-        // validation
-        if (!adId.value || isNaN(value)) return;
-
-        // prevent duplicate API calls
-        if (value === lastSubmittedPrice) return;
-
-        clearTimeout(debounceTimer);
-
-        debounceTimer = setTimeout(() => {
-            updatePrice(value);
-        }, 500); // smooth + fast
-    });
-
-    // =====================
-    // UPDATE PRICE
-    // =====================
-    async function updatePrice(newPrice) {
-
-        const ad = adsData.find(a => a.id === adId.value);
-        if (!ad) {
-            showToast("Ad not found", "error");
+        if (!select) {
+            console.error("adsSelect not found");
             return;
         }
 
-        const payload = {
-            ...ad,
-            price: parseFloat(newPrice),
-            api_key: API_KEY,
-            api_secret: API_SECRET
-        };
+        // =====================
+        // TOAST
+        // =====================
+        function showToast(message, type = "success") {
+            const toast = document.getElementById("toast");
 
-        try {
-            const res = await fetch(`${API_URL}/update-ad`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+            toast.className = "app-toast show " + type;
+            toast.innerText = message;
+
+            setTimeout(() => {
+                toast.className = "app-toast";
+            }, 2500);
+        }
+
+        async function fetchMarketAnalysis() {
+            try {
+                const res = await fetch(`http://127.0.0.1:8080/api/analyze-market`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        api_key: API_KEY,
+                        api_secret: API_SECRET,
+                        tokenId: "BTC",
+                        currencyId: "USD",
+                        side: "0",
+                        minAmount: 0,
+                        marginPct: 4
+                    })
+                });
+
+                const data = await res.json();
+
+                if (!data.status) return;
+
+                marketData = data;
+
+                renderMarketCompetitors(data.top_10_competitors);
+
+            } catch (err) {
+                console.error("Market fetch error:", err);
+            }
+        }
+
+        function renderMarketCompetitors(items) {
+            if (!autoSelect) return;
+
+            autoSelect.innerHTML = `<option value="">-- Select Competitor Price --</option>`;
+
+            items.forEach((item, index) => {
+                autoSelect.innerHTML += `
+                    <option 
+                        value="${item.price}" 
+                        data-id="${item.id}">
+                        #${index + 1} | ${item.nickName} | $${item.price}
+                    </option>
+                `;
             });
+        }
 
-            const result = await res.json();
+        function startMarketPolling() {
+            fetchMarketAnalysis(); // first run immediately
 
-            if (res.ok && !result.error) {
-                lastSubmittedPrice = newPrice;
-                currentPrice.innerText = newPrice;
+            autoUpdateInterval = setInterval(() => {
+                fetchMarketAnalysis();
+            }, 3000);
+        }
 
-                showToast("Price Updated", "success");
-                priceInput.value = ''
-            } else {
-                showToast("Update failed", "error");
-                priceInput.value = ''
+        startMarketPolling();
+
+        autoSelect.addEventListener('change', function () {
+
+            const selectedPrice = parseFloat(this.value);
+
+            if (!selectedPrice || isNaN(selectedPrice)) return;
+
+            // auto fill input
+            priceInput.value = selectedPrice;
+            currentPrice.innerText = selectedPrice;
+
+            // auto trigger update
+            updatePrice(selectedPrice);
+        });
+
+        // =====================
+        // LOAD ADS
+        // =====================
+        async function loadAds() {
+            try {
+                const res = await fetch(`${API_URL}/ads`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        api_key: API_KEY,
+                        api_secret: API_SECRET
+                    })
+                });
+
+                const data = await res.json();
+
+                adsData = data?.result?.items || [];
+
+                select.innerHTML = `<option value="">-- Select Ad --</option>`;
+
+                adsData.forEach(ad => {
+                    select.innerHTML += `
+                        <option value="${ad.id}">
+                            ${ad.tokenId}/${ad.currencyId} | ${ad.price}
+                        </option>
+                    `;
+                });
+
+            } catch (err) {
+                console.error("Failed to load ads", err);
+                showToast("Failed to load ads", "error");
+            }
+        }
+
+        loadAds();
+
+        // =====================
+        // SELECT AD
+        // =====================
+        select.addEventListener('change', function () {
+
+            const selectedId = String(this.value); 
+
+            const ad = adsData.find(a => String(a.id) === selectedId);
+
+
+            if (!ad) {
+                console.error("Ads not found", selectedId, adsData);
+                showToast("Ad not found", "error");
+                return;
             }
 
-        } catch (err) {
-            console.error("Update failed");
-            showToast("Network error", "error");
-            priceInput.value = ''
-        }
-    }
+            adId.value = ad.id;
 
-});
+            currentPrice.innerText = ad.price;
+
+            pairText.innerText = `${ad.tokenId}/${ad.currencyId}`;
+            minText.innerText = ad.minAmount ?? '---';
+            maxText.innerText = ad.maxAmount ?? '---';
+            statusText.innerText = ad.showStatus ?? ad.status ?? '---';
+
+            setTimeout(() => {
+                priceInput.focus();
+                priceInput.select();
+            }, 100);
+        });
+
+        // =====================
+        // AUTO UPDATE ON INPUT (PASTE + TYPE)
+        // =====================
+        priceInput.addEventListener('input', function () {
+
+            const value = parseFloat(this.value);
+
+            // update UI instantly
+            currentPrice.innerText = this.value || '---';
+
+            // validation
+            if (!adId.value || isNaN(value)) return;
+
+            // prevent duplicate API calls
+            if (value === lastSubmittedPrice) return;
+
+            clearTimeout(debounceTimer);
+
+            debounceTimer = setTimeout(() => {
+                updatePrice(value);
+            }, 500); // smooth + fast
+        });
+
+        // =====================
+        // UPDATE PRICE
+        // =====================
+        async function updatePrice(newPrice) {
+
+            const ad = adsData.find(a => a.id === adId.value);
+            if (!ad) {
+                showToast("Ad not found", "error");
+                return;
+            }
+
+            const payload = {
+                ...ad,
+                price: parseFloat(newPrice),
+                api_key: API_KEY,
+                api_secret: API_SECRET
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/update-ad`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await res.json();
+
+                if (res.ok && !result.error) {
+                    lastSubmittedPrice = newPrice;
+                    currentPrice.innerText = newPrice;
+
+                    showToast("Price Updated", "success");
+                    priceInput.value = ''
+                } else {
+                    showToast("Update failed", "error");
+                    priceInput.value = ''
+                }
+
+            } catch (err) {
+                console.error("Update failed");
+                showToast("Network error", "error");
+                priceInput.value = ''
+            }
+        }
+
+    });
 </script>

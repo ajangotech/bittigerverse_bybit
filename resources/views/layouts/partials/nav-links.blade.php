@@ -10,6 +10,11 @@
         <i class="bi bi-wallet2 me-2"></i> Manage Ads
     </a>
 
+    <a class="nav-link {{ request()->is('dashboard/adslist*') ? 'active' : '' }}"
+       href="/dashboard/adslist">
+        <i class="bi bi-wallet2 me-2"></i> Ads Lists
+    </a>
+
     @auth
         @if(auth()->user()->role === 'admin')
             <a class="nav-link {{ request()->is('dashboard/users*') ? 'active' : '' }}"
