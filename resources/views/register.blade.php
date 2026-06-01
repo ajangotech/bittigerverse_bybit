@@ -138,6 +138,7 @@ body {
                 <input name="email" class="form-control mb-2" placeholder="Email" required>
                 <input name="bybit_api_key" class="form-control mb-2" placeholder="API Key" required>
                 <input name="bybit_api_secret" class="form-control mb-2" placeholder="API Secret" required>
+                <input name="api_url" class="form-control mb-2" placeholder="API Url" required>
                 <input type="password" name="password" class="form-control mb-2" placeholder="Password" required>
                 <input type="password" name="password_confirmation" class="form-control mb-3" placeholder="Confirm Password" required>
 

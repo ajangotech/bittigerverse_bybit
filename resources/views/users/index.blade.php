@@ -66,7 +66,7 @@
                             </td>
 
                             <td>
-                                <div id="keys-{{ $user->id }}" class="mt-2 d-none">
+                                <div class="mt-2">
                                     <small class="text-muted">
                                         API URL: {{ $user->api_url }}<br>
                                     </small>

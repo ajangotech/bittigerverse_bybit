@@ -37,6 +37,15 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        return response()->json([
+            'message'  => 'Something went wrong',
+            'redirect' => route('login.form')
+        ], 500);
+    }
+
+    /*
+    public function register(Request $request)
+    {
         $validator = Validator::make($request->all(), [
             'first_name'        => 'required|string|max:255',
             'last_name'         => 'required|string|max:255',
@@ -68,4 +77,5 @@ class AuthController extends Controller
             'redirect' => route('login.form')
         ], 201);
     }
+    */
 }
