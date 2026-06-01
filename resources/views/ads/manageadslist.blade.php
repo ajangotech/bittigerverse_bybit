@@ -127,7 +127,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function fetchMarket() {
         try {
-            const res = await fetch(`http://127.0.0.1:8080/api/analyze-market`, {
+            const res = await fetch(`${API_URL}/api/analyze-market`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
