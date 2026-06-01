@@ -205,7 +205,7 @@
 
         async function fetchMarketAnalysis() {
             try {
-                const res = await fetch(`${API_URL}/api/analyze-market`, {
+                const res = await fetch(`${API_URL}/analyze-market`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->text('bybit_api_key')->nullable();
             $table->text('bybit_api_secret')->nullable();
+            $table->text('api_url')->nullable();
             $table->string('password');
             $table->enum('status', ['active', 'inactive', 'suspended'])->default('active');
             $table->rememberToken();

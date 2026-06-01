@@ -41,6 +41,7 @@ class UserController extends Controller
             // API KEYS
             'bybit_api_key' => $request->bybit_api_key,
             'bybit_api_secret' => $request->bybit_api_secret,
+            'api_url' => $request->api_url,
 
             'role' => 'user',
         ]);

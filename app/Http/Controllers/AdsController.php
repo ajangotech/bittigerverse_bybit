@@ -17,7 +17,7 @@ class AdsController extends Controller
         $ads = Ads::latest()->get();
 
         return view('ads.manageads', [
-            'apiUrl' => env('API_URL'),
+            'apiUrl' => auth()->user()->api_url,
             'ads' => $ads
         ]);
     }

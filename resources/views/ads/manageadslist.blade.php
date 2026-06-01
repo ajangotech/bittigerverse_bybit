@@ -107,7 +107,7 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
 
-    const API_URL = "{{ env('API_URL') }}";
+    const API_URL = "{{ auth()->user()->api_url }}";
     const API_KEY = "{{ auth()->user()->bybit_api_key }}";
     const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
@@ -127,7 +127,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function fetchMarket() {
         try {
-            const res = await fetch(`${API_URL}/api/analyze-market`, {
+            const res = await fetch(`${API_URL}/analyze-market`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

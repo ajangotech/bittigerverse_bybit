@@ -21,6 +21,8 @@ class AdminSeeder extends Seeder
                 'bybit_api_key' => env('BYBIT_API_KEY'),
                 'bybit_api_secret' => env('BYBIT_API_SECRET'),
 
+                'api_url' => env('API_URL'),
+
                 'password' => Hash::make('0249+!.a5s56779'), // 🔐 change later
 
                 'status' => 'active',

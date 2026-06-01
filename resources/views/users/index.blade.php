@@ -25,6 +25,7 @@
                             <th>Email</th>
                             <th>Status</th>
                             <th>API Keys</th>
+                            <th>API URL</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -60,6 +61,14 @@
                                     <small class="text-muted">
                                         API KEY: {{ Str::limit($user->bybit_api_key, 20) }}<br>
                                         SECRET: {{ Str::limit($user->bybit_api_secret, 20) }}
+                                    </small>
+                                </div>
+                            </td>
+
+                            <td>
+                                <div id="keys-{{ $user->id }}" class="mt-2 d-none">
+                                    <small class="text-muted">
+                                        API URL: {{ $user->api_url }}<br>
                                     </small>
                                 </div>
                             </td>
@@ -119,6 +128,10 @@
                 </div>
 
                 <div class="mb-2">
+                    <input type="text" id="api_url" class="form-control" placeholder="e.g. https://00-bittiger.ajango.com.ng/api">
+                </div>
+
+                <div class="mb-2">
                     <select id="status" class="form-select">
                         <option value="active">Active</option>
                         <option value="inactive">Inactive</option>
@@ -150,6 +163,7 @@
             // NEW FIELDS
             bybit_api_key: document.getElementById('bybit_api_key').value,
             bybit_api_secret: document.getElementById('bybit_api_secret').value,
+            api_url: document.getElementById('api_url').value,
         };
 
         const res = await fetch('/dashboard/users', {

@@ -141,7 +141,7 @@
 
 <script>
 
-const API_URL = "{{ env('API_URL') }}";
+const API_URL = "{{ auth()->user()->api_url }}";
 const API_KEY = "{{ auth()->user()->bybit_api_key }}";
 const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
