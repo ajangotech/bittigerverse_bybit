@@ -535,119 +535,88 @@ document.addEventListener('DOMContentLoaded', function () {
     */
     async function trackMerchant() {
 
-        const merchant =
-            competitors.find(
-                x =>
-                    String(x.id) ===
-                    String(selectedMerchantId)
-            );
+        const merchant = competitors.find(
+            x => String(x.id) === String(selectedMerchantId)
+        );
 
+        /*
+        |--------------------------------------------------------------------------
+        | Merchant disappeared from top 10
+        |--------------------------------------------------------------------------
+        */
         if (!merchant) {
-
-            document.getElementById(
-                'trackingStatus'
-            ).innerHTML =
-                'Merchant not in Top 10';
-
+            document.getElementById('trackingStatus').innerHTML = 'Merchant not in Top 10';
             return;
         }
 
-        const currentPrice =
-            parseFloat(
-                merchant.price
-            );
+        const currentPrice = parseFloat(merchant.price);
 
-        document.getElementById(
-            'merchantPrice'
-        ).innerHTML =
-            currentPrice;
+        // Update the UI to show the merchant's live price
+        document.getElementById('merchantPrice').innerHTML = currentPrice;
 
         /*
         |--------------------------------------------------------------------------
-        | Market below reference
+        | Market is LOW (Below Initial Reference) -> STOP / DON'T UPDATE
         |--------------------------------------------------------------------------
         */
-        if (
-            currentPrice <
-            lastMerchantPrice
-        ) {
-
+        if (currentPrice < referencePrice) {
             paused = true;
+            document.getElementById('trackingStatus').innerHTML = 'Waiting (Price too low)';
+            return; // 🛑 We return here so the ad DOES NOT update.
+        }
 
-            document.getElementById(
-                'trackingStatus'
-            ).innerHTML =
-                'Waiting for recovery';
+        /*
+        |--------------------------------------------------------------------------
+        | Market is HIGH (Recovered or Tracking Upwards)
+        |--------------------------------------------------------------------------
+        */
+        if (paused && currentPrice >= referencePrice) {
+            paused = false;
+            toast('Market recovered above reference price');
+        }
 
+        document.getElementById('trackingStatus').innerHTML = 'Tracking';
+
+        /*
+        |--------------------------------------------------------------------------
+        | No price change -> do nothing
+        |--------------------------------------------------------------------------
+        */
+        if (currentPrice === lastMerchantPrice) {
             return;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Market recovered
+        | Update Advertisement (Because currentPrice >= referencePrice)
         |--------------------------------------------------------------------------
         */
-        if (
-            paused &&
-            currentPrice >=
-                referencePrice
-        ) {
+        lastMerchantPrice = currentPrice;
 
-            paused = false;
+        // ✅ We implement the new high price!
+        await updateAdPrice(currentPrice);
 
-            document.getElementById(
-                'trackingStatus'
-            ).innerHTML =
-                'Tracking';
-
-            toast(
-                'Market recovered.'
+        try {
+            await fetch(
+                "{{ route('dashboard.com.store') }}",
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        merchant_id: merchant.id,
+                        username: merchant.nickName,
+                        price: currentPrice
+                    })
+                }
             );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Only update if market is HIGHER than reference
-        |--------------------------------------------------------------------------
-        */
-        if (
-            currentPrice >
-            referencePrice
-        ) {
-
-            const ad =
-                adsData.find(
-                    x =>
-                        String(x.id) ===
-                        String(
-                            document.getElementById(
-                                'adId'
-                            ).value
-                        )
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | Prevent duplicate updates
-            |--------------------------------------------------------------------------
-            */
-            if (
-                ad &&
-                parseFloat(ad.price) ===
-                    currentPrice
-            ) {
-                return;
-            }
-
-            await updateAdPrice(
-                currentPrice
-            );
-
-            toast(
-                `Ad updated to ${currentPrice}`
-            );
+        } catch (e) {
+            console.log(e);
         }
     }
+    
 
     /*
     |--------------------------------------------------------------------------
