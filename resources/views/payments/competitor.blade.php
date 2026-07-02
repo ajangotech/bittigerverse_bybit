@@ -530,7 +530,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Track Merchant
+    | Track Merchant (Ratchet / Up-Only Mode)
     |--------------------------------------------------------------------------
     */
     async function trackMerchant() {
@@ -551,49 +551,32 @@ document.addEventListener('DOMContentLoaded', function () {
 
         const currentPrice = parseFloat(merchant.price);
 
-        // Update the UI to show the merchant's live price
+        // Update the UI to show the competitor's actual live price
         document.getElementById('merchantPrice').innerHTML = currentPrice;
 
         /*
         |--------------------------------------------------------------------------
-        | Market is LOW (Below Initial Reference) -> STOP / DON'T UPDATE
+        | The Ratchet Check (NEVER GO DOWN)
         |--------------------------------------------------------------------------
+        | If the competitor's price is LESS THAN OR EQUAL TO our last posted price,
+        | we hit the brakes. We do not update. We hold our high position.
         */
-        if (currentPrice < referencePrice) {
-            paused = true;
-            document.getElementById('trackingStatus').innerHTML = 'Waiting (Price too low)';
-            return; // 🛑 We return here so the ad DOES NOT update.
+        if (currentPrice <= lastMerchantPrice) {
+            document.getElementById('trackingStatus').innerHTML = `Maintaining High (${lastMerchantPrice})`;
+            return; // 🛑 Script stops here. No API calls are made. Ad does not drop.
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Market is HIGH (Recovered or Tracking Upwards)
+        | New High Reached (currentPrice is > lastMerchantPrice)
         |--------------------------------------------------------------------------
         */
-        if (paused && currentPrice >= referencePrice) {
-            paused = false;
-            toast('Market recovered above reference price');
-        }
-
-        document.getElementById('trackingStatus').innerHTML = 'Tracking';
-
-        /*
-        |--------------------------------------------------------------------------
-        | No price change -> do nothing
-        |--------------------------------------------------------------------------
-        */
-        if (currentPrice === lastMerchantPrice) {
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update Advertisement (Because currentPrice >= referencePrice)
-        |--------------------------------------------------------------------------
-        */
+        document.getElementById('trackingStatus').innerHTML = 'Tracking Upwards';
+        
+        // Update our internal tracker to the new highest price
         lastMerchantPrice = currentPrice;
 
-        // ✅ We implement the new high price!
+        // Implement the new higher price
         await updateAdPrice(currentPrice);
 
         try {
@@ -612,6 +595,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     })
                 }
             );
+
         } catch (e) {
             console.log(e);
         }
