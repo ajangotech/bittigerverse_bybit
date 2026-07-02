@@ -183,6 +183,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     let selectedToken = null;
     let selectedCurrency = null;
+    let paused = false;
 
     /*
     |--------------------------------------------------------------------------
@@ -373,6 +374,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log(e);
         }
     }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -483,104 +485,7 @@ document.addEventListener('DOMContentLoaded', function () {
     | Track Merchant
     |--------------------------------------------------------------------------
     */
-    async function trackMerchant() {
-
-        const merchant =
-            competitors.find(
-                x =>
-                String(x.id) ===
-                String(selectedMerchantId)
-            );
-
-        if (!merchant) {
-            return;
-        }
-
-        const currentPrice =
-            parseFloat(merchant.price);
-
-        document.getElementById(
-            'merchantPrice'
-        ).innerHTML =
-            currentPrice;
-
-        /*
-        |--------------------------------------------------------------------------
-        | Market is below reference price
-        |--------------------------------------------------------------------------
-        */
-        if (
-            currentPrice <
-            referencePrice
-        ) {
-
-            document.getElementById(
-                'trackingStatus'
-            ).innerHTML =
-                'Waiting for recovery';
-
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Market recovered
-        |--------------------------------------------------------------------------
-        */
-        document.getElementById(
-            'trackingStatus'
-        ).innerHTML =
-            'Tracking';
-
-        /*
-        |--------------------------------------------------------------------------
-        | No change
-        |--------------------------------------------------------------------------
-        */
-        if (
-            currentPrice ===
-            lastMerchantPrice
-        ) {
-            return;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Price increased
-        |--------------------------------------------------------------------------
-        */
-        lastMerchantPrice =
-            currentPrice;
-
-        await updateAdPrice(
-            currentPrice
-        );
-
-        await fetch(
-            "{{ route('dashboard.com.store') }}",
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type':
-                        'application/json',
-                    'X-CSRF-TOKEN':
-                        '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    merchant_id:
-                        merchant.id,
-                    username:
-                        merchant.nickName,
-                    price:
-                        currentPrice
-                })
-            }
-        );
-
-        toast(
-            `Market updated to ${currentPrice}`
-        );
-    }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -694,5 +599,135 @@ document.addEventListener('DOMContentLoaded', function () {
     }, 2000);
 
 });
+</script>
+
+<script>
+let paused = false;
+
+/*
+|--------------------------------------------------------------------------
+| Track Merchant
+|--------------------------------------------------------------------------
+*/
+async function trackMerchant() {
+
+    const merchant = competitors.find(
+        x => String(x.id) === String(selectedMerchantId)
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Merchant not found
+    |--------------------------------------------------------------------------
+    */
+    if (!merchant) {
+
+        document.getElementById(
+            'trackingStatus'
+        ).innerHTML =
+            'Merchant not found';
+
+        return;
+    }
+
+    const currentPrice =
+        parseFloat(merchant.price);
+
+    document.getElementById(
+        'merchantPrice'
+    ).innerHTML =
+        currentPrice;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Market dropped below reference
+    |--------------------------------------------------------------------------
+    */
+    if (
+        currentPrice < referencePrice
+    ) {
+
+        paused = true;
+
+        document.getElementById(
+            'trackingStatus'
+        ).innerHTML =
+            'Waiting for recovery';
+
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Market recovered
+    |--------------------------------------------------------------------------
+    */
+    if (
+        paused &&
+        currentPrice >= referencePrice
+    ) {
+
+        paused = false;
+
+        document.getElementById(
+            'trackingStatus'
+        ).innerHTML =
+            'Tracking';
+
+        toast(
+            `Market recovered at ${currentPrice}`
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | No changes
+    |--------------------------------------------------------------------------
+    */
+    if (
+        currentPrice === lastMerchantPrice
+    ) {
+        return;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Update Advertisement
+    |--------------------------------------------------------------------------
+    */
+    lastMerchantPrice =
+        currentPrice;
+
+    await updateAdPrice(
+        currentPrice
+    );
+
+    try {
+
+        await fetch(
+            "{{ route('dashboard.com.store') }}",
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type':
+                        'application/json',
+                    'X-CSRF-TOKEN':
+                        '{{ csrf_token() }}'
+                },
+                body: JSON.stringify({
+                    merchant_id:
+                        merchant.id,
+                    username:
+                        merchant.nickName,
+                    price:
+                        currentPrice
+                })
+            }
+        );
+
+    } catch (e) {
+        console.log(e);
+    }
+}
 </script>
 
