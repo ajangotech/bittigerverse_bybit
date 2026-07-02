@@ -175,15 +175,17 @@ document.addEventListener('DOMContentLoaded', function () {
     let competitors = [];
 
     let selectedMerchantId = null;
-    let lastMerchantPrice = null;
-    let referencePrice = null;
+    let selectedMerchantName = null;
 
-    let tracking = false;
-    let updatingAd = false;
+    let referencePrice = null;
+    let lastMerchantPrice = null;
 
     let selectedToken = null;
     let selectedCurrency = null;
+
+    let tracking = false;
     let paused = false;
+    let updatingAd = false;
 
     /*
     |--------------------------------------------------------------------------
@@ -203,10 +205,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Load Ads
+    | Load Advertisements
     |--------------------------------------------------------------------------
     */
     async function loadAds() {
+
         try {
 
             const res = await fetch(
@@ -244,7 +247,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
         } catch (e) {
             console.log(e);
-            toast('Failed to load advertisements.', 'error');
+            toast(
+                'Failed to load advertisements.',
+                'error'
+            );
         }
     }
 
@@ -252,74 +258,97 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Select Advertisement
+    | Advertisement Selected
     |--------------------------------------------------------------------------
     */
-    adsSelect.addEventListener('change', async function () {
+    adsSelect.addEventListener(
+        'change',
+        async function () {
 
-        const ad = adsData.find(
-            x => String(x.id) === String(this.value)
-        );
+            const ad = adsData.find(
+                x => String(x.id) === String(this.value)
+            );
 
-        if (!ad) {
-            selectedToken = null;
-            selectedCurrency = null;
+            if (!ad) {
+
+                selectedToken = null;
+                selectedCurrency = null;
+
+                merchantSelect.innerHTML = `
+                    <option value="">
+                        Select Advertisement First
+                    </option>
+                `;
+
+                return;
+            }
+
+            selectedToken = ad.tokenId;
+            selectedCurrency = ad.currencyId;
+
+            document.getElementById(
+                'adId'
+            ).value = ad.id;
+
+            document.getElementById(
+                'pairText'
+            ).innerHTML =
+                `${ad.tokenId}/${ad.currencyId}`;
+
+            document.getElementById(
+                'currentPrice'
+            ).innerHTML =
+                ad.price;
+
+            document.getElementById(
+                'minText'
+            ).innerHTML =
+                ad.minAmount;
+
+            document.getElementById(
+                'maxText'
+            ).innerHTML =
+                ad.maxAmount;
+
+            document.getElementById(
+                'statusText'
+            ).innerHTML =
+                ad.status ?? '---';
+
+            /*
+            |--------------------------------------------------------------------------
+            | Reset Tracking
+            |--------------------------------------------------------------------------
+            */
+            selectedMerchantId = null;
+            selectedMerchantName = null;
+            referencePrice = null;
+            lastMerchantPrice = null;
+
+            tracking = false;
+            paused = false;
+
+            document.getElementById(
+                'merchantName'
+            ).innerHTML = '---';
+
+            document.getElementById(
+                'merchantPrice'
+            ).innerHTML = '---';
+
+            document.getElementById(
+                'trackingStatus'
+            ).innerHTML = 'Stopped';
 
             merchantSelect.innerHTML = `
                 <option value="">
-                    Select Advertisement First
+                    Loading competitors...
                 </option>
             `;
 
-            return;
+            await fetchCompetitors();
         }
-
-        selectedToken = ad.tokenId;
-        selectedCurrency = ad.currencyId;
-
-        document.getElementById('adId').value = ad.id;
-
-        document.getElementById('pairText').innerHTML =
-            `${ad.tokenId}/${ad.currencyId}`;
-
-        document.getElementById('currentPrice').innerHTML =
-            ad.price;
-
-        document.getElementById('minText').innerHTML =
-            ad.minAmount;
-
-        document.getElementById('maxText').innerHTML =
-            ad.maxAmount;
-
-        document.getElementById('statusText').innerHTML =
-            ad.status ?? '---';
-
-        // Reset tracking state
-        selectedMerchantId = null;
-        lastMerchantPrice = null;
-        referencePrice = null;
-        tracking = false;
-
-        document.getElementById(
-            'merchantName'
-        ).innerHTML = '---';
-
-        document.getElementById(
-            'merchantPrice'
-        ).innerHTML = '---';
-
-        document.getElementById(
-            'trackingStatus'
-        ).innerHTML = 'Stopped';
-
-        merchantSelect.innerHTML = `
-            <option value="">
-                Loading competitors...
-            </option>
-        `;
-
-        await fetchCompetitors();
-    });
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -328,7 +357,10 @@ document.addEventListener('DOMContentLoaded', function () {
     */
     async function fetchCompetitors() {
 
-        if (!selectedToken || !selectedCurrency) {
+        if (
+            !selectedToken ||
+            !selectedCurrency
+        ) {
             return;
         }
 
@@ -339,7 +371,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json'
+                        'Content-Type':
+                            'application/json'
                     },
                     body: JSON.stringify({
                         api_key: API_KEY,
@@ -352,7 +385,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             );
 
-            const data = await res.json();
+            const data =
+                await res.json();
 
             if (!data.status) {
                 return;
@@ -374,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function () {
             console.log(e);
         }
     }
-    
 
     /*
     |--------------------------------------------------------------------------
@@ -383,7 +416,8 @@ document.addEventListener('DOMContentLoaded', function () {
     */
     function renderCompetitors() {
 
-        const selected = selectedMerchantId;
+        const selected =
+            selectedMerchantId;
 
         merchantSelect.innerHTML = `
             <option value="">
@@ -391,22 +425,26 @@ document.addEventListener('DOMContentLoaded', function () {
             </option>
         `;
 
-        competitors.forEach((merchant, index) => {
+        competitors.forEach(
+            (merchant, index) => {
 
-            merchantSelect.innerHTML += `
-                <option
-                    value="${merchant.id}"
-                    data-price="${merchant.price}"
-                    data-name="${merchant.nickName}"
-                    ${selected == merchant.id ? 'selected' : ''}>
-                    #${index + 1}
-                    |
-                    ${merchant.nickName}
-                    |
-                    ${merchant.price}
-                </option>
-            `;
-        });
+                merchantSelect.innerHTML += `
+                    <option
+                        value="${merchant.id}"
+                        data-price="${merchant.price}"
+                        data-name="${merchant.nickName}"
+                        ${selected == merchant.id
+                            ? 'selected'
+                            : ''}>
+                        #${index + 1}
+                        |
+                        ${merchant.nickName}
+                        |
+                        ${merchant.price}
+                    </option>
+                `;
+            }
+        );
     }
 
     /*
@@ -419,7 +457,9 @@ document.addEventListener('DOMContentLoaded', function () {
         async function () {
 
             const option =
-                this.options[this.selectedIndex];
+                this.options[
+                    this.selectedIndex
+                ];
 
             if (!option.value) {
                 return;
@@ -428,18 +468,24 @@ document.addEventListener('DOMContentLoaded', function () {
             selectedMerchantId =
                 option.value;
 
+            selectedMerchantName =
+                option.dataset.name;
+
             referencePrice =
-                parseFloat(option.dataset.price);
+                parseFloat(
+                    option.dataset.price
+                );
 
             lastMerchantPrice =
                 referencePrice;
 
             tracking = true;
+            paused = false;
 
             document.getElementById(
                 'merchantName'
             ).innerHTML =
-                option.dataset.name;
+                selectedMerchantName;
 
             document.getElementById(
                 'merchantPrice'
@@ -465,7 +511,7 @@ document.addEventListener('DOMContentLoaded', function () {
                         merchant_id:
                             selectedMerchantId,
                         username:
-                            option.dataset.name,
+                            selectedMerchantName,
                         price:
                             referencePrice
                     })
@@ -476,7 +522,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 referencePrice
             );
 
-            toast('Merchant selected.');
+            toast(
+                `Tracking ${selectedMerchantName}`
+            );
         }
     );
 
@@ -485,7 +533,136 @@ document.addEventListener('DOMContentLoaded', function () {
     | Track Merchant
     |--------------------------------------------------------------------------
     */
-    
+    async function trackMerchant() {
+
+        const merchant =
+            competitors.find(
+                x =>
+                    String(x.id) ===
+                    String(
+                        selectedMerchantId
+                    )
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Merchant disappeared from top 10
+        |--------------------------------------------------------------------------
+        */
+        if (!merchant) {
+
+            document.getElementById(
+                'trackingStatus'
+            ).innerHTML =
+                'Merchant not in Top 10';
+
+            return;
+        }
+
+        const currentPrice =
+            parseFloat(
+                merchant.price
+            );
+
+        document.getElementById(
+            'merchantPrice'
+        ).innerHTML =
+            currentPrice;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Market below reference
+        |--------------------------------------------------------------------------
+        */
+        if (
+            currentPrice <
+            referencePrice
+        ) {
+
+            paused = true;
+
+            document.getElementById(
+                'trackingStatus'
+            ).innerHTML =
+                'Waiting for recovery';
+
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Market recovered
+        |--------------------------------------------------------------------------
+        */
+        if (
+            paused &&
+            currentPrice >=
+                referencePrice
+        ) {
+
+            paused = false;
+
+            document.getElementById(
+                'trackingStatus'
+            ).innerHTML =
+                'Tracking';
+
+            toast(
+                'Market recovered'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | No price change
+        |--------------------------------------------------------------------------
+        */
+        if (
+            currentPrice ===
+            lastMerchantPrice
+        ) {
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Update Advertisement
+        |--------------------------------------------------------------------------
+        */
+        lastMerchantPrice =
+            currentPrice;
+
+        await updateAdPrice(
+            currentPrice
+        );
+
+        try {
+
+            await fetch(
+                "{{ route('dashboard.com.store') }}",
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json',
+                        'X-CSRF-TOKEN':
+                            '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        merchant_id:
+                            merchant.id,
+                        username:
+                            merchant.nickName,
+                        price:
+                            currentPrice
+                    })
+                }
+            );
+
+        } catch (e) {
+            console.log(e);
+        }
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -505,12 +682,12 @@ document.addEventListener('DOMContentLoaded', function () {
         const ad =
             adsData.find(
                 x =>
-                String(x.id) ===
-                String(
-                    document.getElementById(
-                        'adId'
-                    ).value
-                )
+                    String(x.id) ===
+                    String(
+                        document.getElementById(
+                            'adId'
+                        ).value
+                    )
             );
 
         if (!ad) {
@@ -584,7 +761,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     /*
     |--------------------------------------------------------------------------
-    | Start Polling
+    | Polling
     |--------------------------------------------------------------------------
     */
     setInterval(() => {
@@ -596,138 +773,8 @@ document.addEventListener('DOMContentLoaded', function () {
             fetchCompetitors();
         }
 
-    }, 2000);
+    }, 3000);
 
 });
-</script>
-
-<script>
-let paused = false;
-
-/*
-|--------------------------------------------------------------------------
-| Track Merchant
-|--------------------------------------------------------------------------
-*/
-async function trackMerchant() {
-
-    const merchant = competitors.find(
-        x => String(x.id) === String(selectedMerchantId)
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Merchant not found
-    |--------------------------------------------------------------------------
-    */
-    if (!merchant) {
-
-        document.getElementById(
-            'trackingStatus'
-        ).innerHTML =
-            'Merchant not found';
-
-        return;
-    }
-
-    const currentPrice =
-        parseFloat(merchant.price);
-
-    document.getElementById(
-        'merchantPrice'
-    ).innerHTML =
-        currentPrice;
-
-    /*
-    |--------------------------------------------------------------------------
-    | Market dropped below reference
-    |--------------------------------------------------------------------------
-    */
-    if (
-        currentPrice < referencePrice
-    ) {
-
-        paused = true;
-
-        document.getElementById(
-            'trackingStatus'
-        ).innerHTML =
-            'Waiting for recovery';
-
-        return;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Market recovered
-    |--------------------------------------------------------------------------
-    */
-    if (
-        paused &&
-        currentPrice >= referencePrice
-    ) {
-
-        paused = false;
-
-        document.getElementById(
-            'trackingStatus'
-        ).innerHTML =
-            'Tracking';
-
-        toast(
-            `Market recovered at ${currentPrice}`
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | No changes
-    |--------------------------------------------------------------------------
-    */
-    if (
-        currentPrice === lastMerchantPrice
-    ) {
-        return;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Update Advertisement
-    |--------------------------------------------------------------------------
-    */
-    lastMerchantPrice =
-        currentPrice;
-
-    await updateAdPrice(
-        currentPrice
-    );
-
-    try {
-
-        await fetch(
-            "{{ route('dashboard.com.store') }}",
-            {
-                method: 'POST',
-                headers: {
-                    'Content-Type':
-                        'application/json',
-                    'X-CSRF-TOKEN':
-                        '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    merchant_id:
-                        merchant.id,
-                    username:
-                        merchant.nickName,
-                    price:
-                        currentPrice
-                })
-            }
-        );
-
-    } catch (e) {
-        console.log(e);
-    }
-}
 </script>
 
