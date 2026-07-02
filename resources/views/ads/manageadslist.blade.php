@@ -212,7 +212,7 @@
                         <td class="big-name">${item.nickName}</td>
 
                         <td class="big-price">
-                            ₦ ${parseFloat(item.price).toLocaleString()}
+                            ${parseFloat(item.price).toLocaleString()}
                         </td>
 
                         <td class="small-qty">
