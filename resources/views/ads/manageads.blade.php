@@ -253,7 +253,7 @@
 
             autoUpdateInterval = setInterval(() => {
                 fetchMarketAnalysis();
-            }, 3000);
+            }, 2000);
         }
 
         startMarketPolling();

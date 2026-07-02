@@ -136,7 +136,8 @@ async function loadOrders(type = "pending") {
                 `₦${order.price}`,
                 `₦${total}`,
                 statusBadge,
-                formatDate(order.createDate)
+                formatDate(order.createDate),
+                getActionButtons(order)
             ]);
         });
 
@@ -147,6 +148,174 @@ async function loadOrders(type = "pending") {
         alert("Failed to load orders");
     } finally {
         loader.classList.add('d-none');
+    }
+}
+
+
+function getActionButtons(order) {
+
+    /*
+    Pending Order
+    */
+    if (order.status != 10) {
+        return '-';
+    }
+
+    /*
+    Payment Information
+    */
+    let paymentType = '';
+    let paymentId = '';
+
+    if (
+        order.paymentInfo &&
+        order.paymentInfo.length
+    ) {
+        paymentType =
+            order.paymentInfo[0].paymentType;
+
+        paymentId =
+            order.paymentInfo[0].paymentId;
+    }
+
+    /*
+    Fallback
+    */
+    paymentType =
+        paymentType ||
+        order.paymentType ||
+        '';
+
+    paymentId =
+        paymentId ||
+        order.paymentId ||
+        '';
+
+    return `
+        <button
+            class="btn btn-success btn-sm"
+            onclick="
+                markAsPaid(
+                    '${order.id}',
+                    '${paymentType}',
+                    '${paymentId}'
+                )
+            ">
+            <i class="bi bi-credit-card"></i>
+            Mark Paid
+        </button>
+    `;
+}
+
+async function markAsPaid(
+    orderId,
+    paymentType,
+    paymentId
+) {
+
+    const result =
+        await Swal.fire({
+            title: 'Mark as Paid?',
+            text:
+                'Are you sure you have sent payment?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText:
+                'Yes, Mark Paid',
+            confirmButtonColor:
+                '#E37216'
+        });
+
+    if (!result.isConfirmed) {
+        return;
+    }
+
+    try {
+
+        Swal.fire({
+            title: 'Processing...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const res =
+            await fetch(
+                `${API_URL}/mark-as-paid`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type':
+                            'application/json'
+                    },
+                    body: JSON.stringify({
+                        api_key:
+                            API_KEY,
+                        api_secret:
+                            API_SECRET,
+                        orderId:
+                            orderId,
+                        paymentType:
+                            paymentType,
+                        paymentId:
+                            paymentId
+                    })
+                }
+            );
+
+        const data =
+            await res.json();
+
+        Swal.close();
+
+        console.log(data);
+
+        /*
+        Success Response
+        */
+        if (
+            data.result ||
+            data.ret_code === 0 ||
+            data.retCode === 0
+        ) {
+
+            Swal.fire({
+                icon: 'success',
+                title: 'Success',
+                text:
+                    'Order marked as paid.'
+            });
+
+            loadOrders(
+                document.getElementById(
+                    'orderType'
+                ).value
+            );
+
+            return;
+        }
+
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text:
+                data.ret_msg ||
+                data.error ||
+                'Failed to mark paid.'
+        });
+
+    }
+    catch (err) {
+
+        console.log(err);
+
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text:
+                'Unable to connect to server.'
+        });
     }
 }
 

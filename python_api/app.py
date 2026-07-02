@@ -410,6 +410,29 @@ def online_ads(data):
         }), 500
 
 
+# =========================
+# 💳 MARK AS PAID
+# =========================
+@app.route("/api/mark-as-paid", methods=["POST"])
+@require_api_keys
+def mark_as_paid(data):
+    try:
+        api = get_api(data)
+
+        result = api.mark_as_paid(
+            orderId=data.get("orderId"),
+            paymentType=str(data.get("paymentType")),
+            paymentId=str(data.get("paymentId"))
+        )
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "status": False,
+            "error": str(e)
+        }), 500
+
 
 # =========================
 # 🚀 RUN APP

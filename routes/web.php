@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BybitController;
+use App\Http\Controllers\CompetitorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\PaymentController;
@@ -32,6 +33,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/payments', [PaymentController::class, 'index'])->name('dashboard.payments');
 
     Route::get('/dashboard/orders', [OrdersController::class, 'orders'])->name('dashboard.orders');
+
+    Route::post('/competitors/store', [CompetitorController::class, 'store'])->name('dashboard.com.store');
+
+    Route::post('/competitors/update-price', [CompetitorController::class, 'updatePrice'])->name('competitors.updatePrice');
+
+    Route::get('/dashboard/competitor', [CompetitorController::class, 'competitor'])->name('dashboard.competitor');
 
     Route::post('/dashboard/change-password', [DashboardController::class, 'changePassword'])->middleware('auth');
 
