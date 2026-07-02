@@ -539,16 +539,9 @@ document.addEventListener('DOMContentLoaded', function () {
             competitors.find(
                 x =>
                     String(x.id) ===
-                    String(
-                        selectedMerchantId
-                    )
+                    String(selectedMerchantId)
             );
 
-        /*
-        |--------------------------------------------------------------------------
-        | Merchant disappeared from top 10
-        |--------------------------------------------------------------------------
-        */
         if (!merchant) {
 
             document.getElementById(
@@ -576,7 +569,7 @@ document.addEventListener('DOMContentLoaded', function () {
         */
         if (
             currentPrice <
-            referencePrice
+            lastMerchantPrice
         ) {
 
             paused = true;
@@ -608,59 +601,51 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Tracking';
 
             toast(
-                'Market recovered'
+                'Market recovered.'
             );
         }
 
         /*
         |--------------------------------------------------------------------------
-        | No price change
+        | Only update if market is HIGHER than reference
         |--------------------------------------------------------------------------
         */
         if (
-            currentPrice ===
-            lastMerchantPrice
+            currentPrice >
+            referencePrice
         ) {
-            return;
-        }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Update Advertisement
-        |--------------------------------------------------------------------------
-        */
-        lastMerchantPrice =
-            currentPrice;
+            const ad =
+                adsData.find(
+                    x =>
+                        String(x.id) ===
+                        String(
+                            document.getElementById(
+                                'adId'
+                            ).value
+                        )
+                );
 
-        await updateAdPrice(
-            currentPrice
-        );
+            /*
+            |--------------------------------------------------------------------------
+            | Prevent duplicate updates
+            |--------------------------------------------------------------------------
+            */
+            if (
+                ad &&
+                parseFloat(ad.price) ===
+                    currentPrice
+            ) {
+                return;
+            }
 
-        try {
-
-            await fetch(
-                "{{ route('dashboard.com.store') }}",
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type':
-                            'application/json',
-                        'X-CSRF-TOKEN':
-                            '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        merchant_id:
-                            merchant.id,
-                        username:
-                            merchant.nickName,
-                        price:
-                            currentPrice
-                    })
-                }
+            await updateAdPrice(
+                currentPrice
             );
 
-        } catch (e) {
-            console.log(e);
+            toast(
+                `Ad updated to ${currentPrice}`
+            );
         }
     }
 
