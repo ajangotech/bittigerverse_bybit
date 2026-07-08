@@ -44,11 +44,8 @@
 </style>
 
 <div class="container-fluid py-4">
-
     <div class="row g-4">
-
         <div class="col-md-6">
-
             <div class="card ads-card">
                 <div class="card-body">
 
@@ -101,7 +98,6 @@
 
                 </div>
             </div>
-
         </div>
 
         <div class="col-md-6">
@@ -153,566 +149,655 @@
             </div>
 
         </div>
-
     </div>
-
 </div>
 
 @endsection
 
 
 <script>
-document.addEventListener('DOMContentLoaded', function () {
+    document.addEventListener('DOMContentLoaded', function () {
 
-    const API_URL = "{{ auth()->user()->api_url }}";
-    const API_KEY = "{{ auth()->user()->bybit_api_key }}";
-    const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
+        const API_URL = "{{ auth()->user()->api_url }}";
+        const API_KEY = "{{ auth()->user()->bybit_api_key }}";
+        const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
-    const adsSelect = document.getElementById('adsSelect');
-    const merchantSelect = document.getElementById('merchantSelect');
+        const adsSelect = document.getElementById('adsSelect');
+        const merchantSelect = document.getElementById('merchantSelect');
 
-    let adsData = [];
-    let competitors = [];
+        let adsData = [];
+        let competitors = [];
 
-    let selectedMerchantId = null;
-    let selectedMerchantName = null;
+        let selectedMerchantId = null;
+        let selectedMerchantName = null;
 
-    let referencePrice = null;
-    let lastMerchantPrice = null;
+        let referencePrice = null;
+        let lastMerchantPrice = null;
 
-    let selectedToken = null;
-    let selectedCurrency = null;
+        let selectedToken = null;
+        let selectedCurrency = null;
 
-    let tracking = false;
-    let paused = false;
-    let updatingAd = false;
+        let tracking = false;
+        let paused = false;
+        let updatingAd = false;
 
-    /*
-    |--------------------------------------------------------------------------
-    | Toast
-    |--------------------------------------------------------------------------
-    */
-    function toast(message, type = 'success') {
-        const t = document.getElementById('toast');
+        /*
+        |--------------------------------------------------------------------------
+        | Toast
+        |--------------------------------------------------------------------------
+        */
+        function toast(message, type = 'success') {
+            const t = document.getElementById('toast');
 
-        t.innerHTML = message;
-        t.className = `app-toast show ${type}`;
+            t.innerHTML = message;
+            t.className = `app-toast show ${type}`;
 
-        setTimeout(() => {
-            t.className = 'app-toast';
-        }, 3000);
-    }
+            setTimeout(() => {
+                t.className = 'app-toast';
+            }, 3000);
+        }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Load Advertisements
-    |--------------------------------------------------------------------------
-    */
-    async function loadAds() {
+        /*
+        |--------------------------------------------------------------------------
+        | Load Advertisements
+        |--------------------------------------------------------------------------
+        */
+        async function loadAds() {
 
-        try {
+            try {
 
-            const res = await fetch(
-                `${API_URL}/ads`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        api_key: API_KEY,
-                        api_secret: API_SECRET
-                    })
-                }
-            );
+                const res = await fetch(
+                    `${API_URL}/ads`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            api_key: API_KEY,
+                            api_secret: API_SECRET
+                        })
+                    }
+                );
 
-            const data = await res.json();
+                const data = await res.json();
 
-            adsData = data?.result?.items || [];
+                adsData = data?.result?.items || [];
 
-            adsSelect.innerHTML = `
-                <option value="">
-                    Select Advertisement
-                </option>
-            `;
-
-            adsData.forEach(ad => {
-                adsSelect.innerHTML += `
-                    <option value="${ad.id}">
-                        ${ad.tokenId}/${ad.currencyId}
-                        | ${ad.price}
+                adsSelect.innerHTML = `
+                    <option value="">
+                        Select Advertisement
                     </option>
                 `;
-            });
 
-        } catch (e) {
-            console.log(e);
-            toast(
-                'Failed to load advertisements.',
-                'error'
-            );
+                adsData.forEach(ad => {
+                    adsSelect.innerHTML += `
+                        <option value="${ad.id}">
+                            ${ad.tokenId}/${ad.currencyId}
+                            | ${ad.price}
+                        </option>
+                    `;
+                });
+
+            } catch (e) {
+                console.log(e);
+                toast(
+                    'Failed to load advertisements.',
+                    'error'
+                );
+            }
         }
-    }
 
-    loadAds();
+        loadAds();
 
-    /*
-    |--------------------------------------------------------------------------
-    | Advertisement Selected
-    |--------------------------------------------------------------------------
-    */
-    adsSelect.addEventListener(
-        'change',
-        async function () {
+        /*
+        |--------------------------------------------------------------------------
+        | Advertisement Selected
+        |--------------------------------------------------------------------------
+        */
+        adsSelect.addEventListener(
+            'change',
+            async function () {
 
-            const ad = adsData.find(
-                x => String(x.id) === String(this.value)
-            );
+                const ad = adsData.find(
+                    x => String(x.id) === String(this.value)
+                );
 
-            if (!ad) {
+                if (!ad) {
 
-                selectedToken = null;
-                selectedCurrency = null;
+                    selectedToken = null;
+                    selectedCurrency = null;
+
+                    merchantSelect.innerHTML = `
+                        <option value="">
+                            Select Advertisement First
+                        </option>
+                    `;
+
+                    return;
+                }
+
+                selectedToken = ad.tokenId;
+                selectedCurrency = ad.currencyId;
+
+                document.getElementById(
+                    'adId'
+                ).value = ad.id;
+
+                document.getElementById(
+                    'pairText'
+                ).innerHTML =
+                    `${ad.tokenId}/${ad.currencyId}`;
+
+                document.getElementById(
+                    'currentPrice'
+                ).innerHTML =
+                    ad.price;
+
+                document.getElementById(
+                    'minText'
+                ).innerHTML =
+                    ad.minAmount;
+
+                document.getElementById(
+                    'maxText'
+                ).innerHTML =
+                    ad.maxAmount;
+
+                document.getElementById(
+                    'statusText'
+                ).innerHTML =
+                    ad.status ?? '---';
+
+                /*
+                |--------------------------------------------------------------------------
+                | Reset Tracking
+                |--------------------------------------------------------------------------
+                */
+                selectedMerchantId = null;
+                selectedMerchantName = null;
+                referencePrice = null;
+                lastMerchantPrice = null;
+
+                tracking = false;
+                paused = false;
+
+                document.getElementById(
+                    'merchantName'
+                ).innerHTML = '---';
+
+                document.getElementById(
+                    'merchantPrice'
+                ).innerHTML = '---';
+
+                document.getElementById(
+                    'trackingStatus'
+                ).innerHTML = 'Stopped';
 
                 merchantSelect.innerHTML = `
                     <option value="">
-                        Select Advertisement First
+                        Loading competitors...
                     </option>
                 `;
 
-                return;
+                await fetchCompetitors();
             }
+        );
 
-            selectedToken = ad.tokenId;
-            selectedCurrency = ad.currencyId;
-
-            document.getElementById(
-                'adId'
-            ).value = ad.id;
-
-            document.getElementById(
-                'pairText'
-            ).innerHTML =
-                `${ad.tokenId}/${ad.currencyId}`;
-
-            document.getElementById(
-                'currentPrice'
-            ).innerHTML =
-                ad.price;
-
-            document.getElementById(
-                'minText'
-            ).innerHTML =
-                ad.minAmount;
-
-            document.getElementById(
-                'maxText'
-            ).innerHTML =
-                ad.maxAmount;
-
-            document.getElementById(
-                'statusText'
-            ).innerHTML =
-                ad.status ?? '---';
-
-            /*
-            |--------------------------------------------------------------------------
-            | Reset Tracking
-            |--------------------------------------------------------------------------
-            */
-            selectedMerchantId = null;
-            selectedMerchantName = null;
-            referencePrice = null;
-            lastMerchantPrice = null;
-
-            tracking = false;
-            paused = false;
-
-            document.getElementById(
-                'merchantName'
-            ).innerHTML = '---';
-
-            document.getElementById(
-                'merchantPrice'
-            ).innerHTML = '---';
-
-            document.getElementById(
-                'trackingStatus'
-            ).innerHTML = 'Stopped';
-
-            merchantSelect.innerHTML = `
-                <option value="">
-                    Loading competitors...
-                </option>
-            `;
-
-            await fetchCompetitors();
-        }
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Fetch Competitors
-    |--------------------------------------------------------------------------
-    */
-    async function fetchCompetitors() {
-
-        if (
-            !selectedToken ||
-            !selectedCurrency
-        ) {
-            return;
-        }
-
-        try {
-
-            const res = await fetch(
-                `${API_URL}/analyze-market`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type':
-                            'application/json'
-                    },
-                    body: JSON.stringify({
-                        api_key: API_KEY,
-                        api_secret: API_SECRET,
-                        tokenId: selectedToken,
-                        currencyId: selectedCurrency,
-                        side: '0',
-                        marginPct: 4
-                    })
-                }
-            );
-
-            const data =
-                await res.json();
-
-            if (!data.status) {
-                return;
-            }
-
-            competitors =
-                data.top_10_competitors || [];
-
-            renderCompetitors();
+        /*
+        |--------------------------------------------------------------------------
+        | Fetch Competitors
+        |--------------------------------------------------------------------------
+        */
+        async function fetchCompetitors() {
 
             if (
-                tracking &&
-                selectedMerchantId
+                !selectedToken ||
+                !selectedCurrency
             ) {
-                await trackMerchant();
-            }
-
-        } catch (e) {
-            console.log(e);
-        }
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Render Competitors
-    |--------------------------------------------------------------------------
-    */
-    function renderCompetitors() {
-
-        const selected =
-            selectedMerchantId;
-
-        merchantSelect.innerHTML = `
-            <option value="">
-                Select Merchant
-            </option>
-        `;
-
-        competitors.forEach(
-            (merchant, index) => {
-
-                merchantSelect.innerHTML += `
-                    <option
-                        value="${merchant.id}"
-                        data-price="${merchant.price}"
-                        data-name="${merchant.nickName}"
-                        ${selected == merchant.id
-                            ? 'selected'
-                            : ''}>
-                        #${index + 1}
-                        |
-                        ${merchant.nickName}
-                        |
-                        ${merchant.price}
-                    </option>
-                `;
-            }
-        );
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Merchant Selected
-    |--------------------------------------------------------------------------
-    */
-    merchantSelect.addEventListener(
-        'change',
-        async function () {
-
-            const option =
-                this.options[
-                    this.selectedIndex
-                ];
-
-            if (!option.value) {
                 return;
             }
 
-            selectedMerchantId =
-                option.value;
+            try {
 
-            selectedMerchantName =
-                option.dataset.name;
-
-            referencePrice =
-                parseFloat(
-                    option.dataset.price
-                );
-
-            lastMerchantPrice =
-                referencePrice;
-
-            tracking = true;
-            paused = false;
-
-            document.getElementById(
-                'merchantName'
-            ).innerHTML =
-                selectedMerchantName;
-
-            document.getElementById(
-                'merchantPrice'
-            ).innerHTML =
-                referencePrice;
-
-            document.getElementById(
-                'trackingStatus'
-            ).innerHTML =
-                'Tracking';
-
-            await fetch(
-                "{{ route('dashboard.com.store') }}",
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type':
-                            'application/json',
-                        'X-CSRF-TOKEN':
-                            '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        merchant_id:
-                            selectedMerchantId,
-                        username:
-                            selectedMerchantName,
-                        price:
-                            referencePrice
-                    })
-                }
-            );
-
-            await updateAdPrice(
-                referencePrice
-            );
-
-            toast(
-                `Tracking ${selectedMerchantName}`
-            );
-        }
-    );
-
-    /*
-    |--------------------------------------------------------------------------
-    | Track Merchant (Ratchet / Up-Only Mode)
-    |--------------------------------------------------------------------------
-    */
-    async function trackMerchant() {
-
-        const merchant = competitors.find(
-            x => String(x.id) === String(selectedMerchantId)
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Merchant disappeared from top 10
-        |--------------------------------------------------------------------------
-        */
-        if (!merchant) {
-            document.getElementById('trackingStatus').innerHTML = 'Merchant not in Top 10';
-            return;
-        }
-
-        const currentPrice = parseFloat(merchant.price);
-
-        // Update the UI to show the competitor's actual live price
-        document.getElementById('merchantPrice').innerHTML = currentPrice;
-
-        /*
-        |--------------------------------------------------------------------------
-        | The Ratchet Check (NEVER GO DOWN)
-        |--------------------------------------------------------------------------
-        | If the competitor's price is LESS THAN OR EQUAL TO our last posted price,
-        | we hit the brakes. We do not update. We hold our high position.
-        */
-        if (currentPrice <= lastMerchantPrice) {
-            document.getElementById('trackingStatus').innerHTML = `Maintaining High (${lastMerchantPrice})`;
-            return; // 🛑 Script stops here. No API calls are made. Ad does not drop.
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | New High Reached (currentPrice is > lastMerchantPrice)
-        |--------------------------------------------------------------------------
-        */
-        document.getElementById('trackingStatus').innerHTML = 'Tracking Upwards';
-        
-        // Update our internal tracker to the new highest price
-        lastMerchantPrice = currentPrice;
-
-        // Implement the new higher price
-        await updateAdPrice(currentPrice);
-
-        try {
-            await fetch(
-                "{{ route('dashboard.com.store') }}",
-                {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        merchant_id: merchant.id,
-                        username: merchant.nickName,
-                        price: currentPrice
-                    })
-                }
-            );
-
-        } catch (e) {
-            console.log(e);
-        }
-    }
-    
-
-    /*
-    |--------------------------------------------------------------------------
-    | Update Advertisement
-    |--------------------------------------------------------------------------
-    */
-    async function updateAdPrice(
-        newPrice
-    ) {
-
-        if (updatingAd) {
-            return;
-        }
-
-        updatingAd = true;
-
-        const ad =
-            adsData.find(
-                x =>
-                    String(x.id) ===
-                    String(
-                        document.getElementById(
-                            'adId'
-                        ).value
-                    )
-            );
-
-        if (!ad) {
-
-            updatingAd = false;
-
-            toast(
-                'Please select your Ad first.',
-                'error'
-            );
-
-            return;
-        }
-
-        const payload = {
-            ...ad,
-            price: newPrice,
-            api_key: API_KEY,
-            api_secret: API_SECRET
-        };
-
-        try {
-
-            const res =
-                await fetch(
-                    `${API_URL}/update-ad`,
+                const res = await fetch(
+                    `${API_URL}/analyze-market`,
                     {
                         method: 'POST',
                         headers: {
                             'Content-Type':
                                 'application/json'
                         },
-                        body: JSON.stringify(
-                            payload
-                        )
+                        body: JSON.stringify({
+                            api_key: API_KEY,
+                            api_secret: API_SECRET,
+                            tokenId: selectedToken,
+                            currencyId: selectedCurrency,
+                            side: '0',
+                            marginPct: 4
+                        })
                     }
                 );
 
-            const result =
-                await res.json();
+                const data =
+                    await res.json();
 
-            if (
-                res.ok &&
-                !result.error
-            ) {
+                if (!data.status) {
+                    return;
+                }
 
-                ad.price =
-                    newPrice;
+                competitors =
+                    data.top_10_competitors || [];
 
-                document.getElementById(
-                    'currentPrice'
-                ).innerHTML =
-                    newPrice;
+                renderCompetitors();
 
-                toast(
-                    `Ad updated to ${newPrice}`
-                );
+                if (
+                    tracking &&
+                    selectedMerchantId
+                ) {
+                    await trackMerchant();
+                }
+
+            } catch (e) {
+                console.log(e);
             }
+        }
 
-        } catch (e) {
-            console.log(e);
+        /*
+        |--------------------------------------------------------------------------
+        | Render Competitors
+        |--------------------------------------------------------------------------
+        */
+        function renderCompetitors() {
 
-            toast(
-                'Failed to update ad.',
-                'error'
+            const selected =
+                selectedMerchantId;
+
+            merchantSelect.innerHTML = `
+                <option value="">
+                    Select Merchant
+                </option>
+            `;
+
+            competitors.forEach(
+                (merchant, index) => {
+
+                    merchantSelect.innerHTML += `
+                        <option
+                            value="${merchant.id}"
+                            data-price="${merchant.price}"
+                            data-name="${merchant.nickName}"
+                            ${selected == merchant.id
+                                ? 'selected'
+                                : ''}>
+                            #${index + 1}
+                            |
+                            ${merchant.nickName}
+                            |
+                            ${merchant.price}
+                        </option>
+                    `;
+                }
             );
         }
 
-        updatingAd = false;
-    }
+        /*
+        |--------------------------------------------------------------------------
+        | Merchant Selected
+        |--------------------------------------------------------------------------
+        */
+        merchantSelect.addEventListener(
+            'change',
+            async function () {
 
-    /*
-    |--------------------------------------------------------------------------
-    | Polling
-    |--------------------------------------------------------------------------
-    */
-    setInterval(() => {
+                const option =
+                    this.options[
+                        this.selectedIndex
+                    ];
 
-        if (
-            selectedToken &&
-            selectedCurrency
-        ) {
-            fetchCompetitors();
+                if (!option.value) {
+                    return;
+                }
+
+                selectedMerchantId =
+                    option.value;
+
+                selectedMerchantName =
+                    option.dataset.name;
+
+                referencePrice =
+                    parseFloat(
+                        option.dataset.price
+                    );
+
+                lastMerchantPrice =
+                    referencePrice;
+
+                tracking = true;
+                paused = false;
+
+                document.getElementById(
+                    'merchantName'
+                ).innerHTML =
+                    selectedMerchantName;
+
+                document.getElementById(
+                    'merchantPrice'
+                ).innerHTML =
+                    referencePrice;
+
+                document.getElementById(
+                    'trackingStatus'
+                ).innerHTML =
+                    'Tracking';
+
+                await fetch(
+                    "{{ route('dashboard.com.store') }}",
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type':
+                                'application/json',
+                            'X-CSRF-TOKEN':
+                                '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            merchant_id:
+                                selectedMerchantId,
+                            username:
+                                selectedMerchantName,
+                            price:
+                                referencePrice
+                        })
+                    }
+                );
+
+                await updateAdPrice(
+                    referencePrice
+                );
+
+                toast(
+                    `Tracking ${selectedMerchantName}`
+                );
+            }
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Track Merchant (Ratchet / Up-Only Mode)
+        |--------------------------------------------------------------------------
+        */
+        async function trackMerchant() {
+
+            const merchant = competitors.find(
+                x => String(x.id) === String(selectedMerchantId)
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Merchant disappeared from top 10
+            |--------------------------------------------------------------------------
+            */
+            if (!merchant) {
+                document.getElementById('trackingStatus').innerHTML = 'Merchant not in Top 10';
+                return;
+            }
+
+            const currentPrice = parseFloat(merchant.price);
+
+            // Update the UI to show the competitor's actual live price
+            document.getElementById('merchantPrice').innerHTML = currentPrice;
+
+            /*
+            |--------------------------------------------------------------------------
+            | The Ratchet Check (NEVER GO DOWN)
+            |--------------------------------------------------------------------------
+            | If the competitor's price is LESS THAN OR EQUAL TO our last posted price,
+            | we hit the brakes. We do not update. We hold our high position.
+            */
+            if (currentPrice <= lastMerchantPrice) {
+                document.getElementById('trackingStatus').innerHTML = `Maintaining High (${lastMerchantPrice})`;
+                return; // 🛑 Script stops here. No API calls are made. Ad does not drop.
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | New High Reached (currentPrice is > lastMerchantPrice)
+            |--------------------------------------------------------------------------
+            */
+            document.getElementById('trackingStatus').innerHTML = 'Tracking Upwards';
+            
+            // Update our internal tracker to the new highest price
+            lastMerchantPrice = currentPrice;
+
+            // Implement the new higher price
+            await updateAdPrice(currentPrice);
+
+            try {
+                await fetch(
+                    "{{ route('dashboard.com.store') }}",
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify({
+                            merchant_id: merchant.id,
+                            username: merchant.nickName,
+                            price: currentPrice
+                        })
+                    }
+                );
+
+            } catch (e) {
+                console.log(e);
+            }
+        }
+        
+        /*
+        |--------------------------------------------------------------------------
+        | Update Advertisement (With 1-Second Auto-Retry)
+        |--------------------------------------------------------------------------
+        */
+        let targetAdPrice = null; // Keeps track of the most recent price requested
+
+        async function updateAdPrice(newPrice) {
+
+            // Always update our target to the newest requested price
+            targetAdPrice = newPrice;
+
+            // If an update or retry loop is already running, don't spawn another one.
+            // It will automatically pick up the new targetAdPrice on its next loop.
+            if (updatingAd) {
+                return;
+            }
+
+            updatingAd = true;
+
+            // Loop indefinitely until the update successfully hits the backend
+            while (true) {
+
+                const ad = adsData.find(
+                    x => String(x.id) === String(document.getElementById('adId').value)
+                );
+
+                if (!ad) {
+                    updatingAd = false;
+                    toast('Please select your Ad first.', 'error');
+                    return;
+                }
+
+                // Grab the freshest target price right before we send the request
+                const priceToUpdate = targetAdPrice;
+
+                const payload = {
+                    ...ad,
+                    price: priceToUpdate,
+                    api_key: API_KEY,
+                    api_secret: API_SECRET
+                };
+
+                try {
+                    const res = await fetch(`${API_URL}/update-ad`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await res.json();
+
+                    if (res.ok && !result.error) {
+                        
+                        // Success! Update UI and local data.
+                        ad.price = priceToUpdate;
+                        document.getElementById('currentPrice').innerHTML = priceToUpdate;
+                        toast(`Ad updated to ${priceToUpdate}`);
+                        
+                        // If no newer price was requested while we were waiting, we are fully synced.
+                        if (targetAdPrice === priceToUpdate) {
+                            break; // Exit the retry loop
+                        }
+
+                    } else {
+                        // Backend returned an error (e.g., rate limit, min/max error)
+                        console.log('Backend Error:', result);
+                        toast('Backend error. Retrying in 1 second...', 'error');
+                        
+                        // Sleep for 1 second before retrying
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+
+                } catch (e) {
+                    // Network failed (e.g., connection lost, timeout)
+                    console.log('Network Error:', e);
+                    toast('Network error. Retrying in 1 second...', 'error');
+                    
+                    // Sleep for 1 second before retrying
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+            }
+
+            // Loop finished successfully, release the lock
+            updatingAd = false;
         }
 
-    }, 3000);
 
-});
+        /*
+        |--------------------------------------------------------------------------
+        | Update Advertisement
+        |--------------------------------------------------------------------------
+        
+        async function updateAdPrice(
+            newPrice
+        ) {
+
+            if (updatingAd) {
+                return;
+            }
+
+            updatingAd = true;
+
+            const ad =
+                adsData.find(
+                    x =>
+                        String(x.id) ===
+                        String(
+                            document.getElementById(
+                                'adId'
+                            ).value
+                        )
+                );
+
+            if (!ad) {
+
+                updatingAd = false;
+
+                toast(
+                    'Please select your Ad first.',
+                    'error'
+                );
+
+                return;
+            }
+
+            const payload = {
+                ...ad,
+                price: newPrice,
+                api_key: API_KEY,
+                api_secret: API_SECRET
+            };
+
+            try {
+
+                const res =
+                    await fetch(
+                        `${API_URL}/update-ad`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type':
+                                    'application/json'
+                            },
+                            body: JSON.stringify(
+                                payload
+                            )
+                        }
+                    );
+
+                const result =
+                    await res.json();
+
+                if (
+                    res.ok &&
+                    !result.error
+                ) {
+
+                    ad.price =
+                        newPrice;
+
+                    document.getElementById(
+                        'currentPrice'
+                    ).innerHTML =
+                        newPrice;
+
+                    toast(
+                        `Ad updated to ${newPrice}`
+                    );
+                }
+
+            } catch (e) {
+                console.log(e);
+
+                toast(
+                    'Failed to update ad.',
+                    'error'
+                );
+            }
+
+            updatingAd = false;
+        }
+
+        */
+
+        /*
+        |--------------------------------------------------------------------------
+        | Polling
+        |--------------------------------------------------------------------------
+        */
+        setInterval(() => {
+
+            if (
+                selectedToken &&
+                selectedCurrency
+            ) {
+                fetchCompetitors();
+            }
+
+        }, 3000);
+
+    });
 </script>
 
