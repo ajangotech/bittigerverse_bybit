@@ -248,7 +248,7 @@ function renderTable() {
 
                 <td>
                     <span class="fw-bold text-success">
-                        ₦${parseFloat(ad.price).toLocaleString()}
+                        ${parseFloat(ad.price).toLocaleString()}
                     </span>
                 </td>
 
