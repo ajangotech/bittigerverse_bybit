@@ -664,7 +664,7 @@
                     } else {
                         // Backend returned an error (e.g., rate limit, min/max error)
                         console.log('Backend Error:', result);
-                        toast('Backend error. Retrying in 1 second...', 'error');
+                        toast('Retrying in 1 second...', 'error');
                         
                         // Sleep for 1 second before retrying
                         await new Promise(resolve => setTimeout(resolve, 1000));
