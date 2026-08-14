@@ -13,6 +13,12 @@ class CompetitorController extends Controller
         return view('payments.competitor', compact('competitors'));
     }
 
+    public function competitorpro()
+    {
+        $competitors = Competitor::first();
+        return view('payments.competitorpro', compact('competitors'));
+    }
+
     public function store(Request $request)
     {
         $competitor = Competitor::updateOrCreate(

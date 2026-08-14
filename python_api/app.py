@@ -434,6 +434,118 @@ def mark_as_paid(data):
         }), 500
 
 
+#AutoPaymentBot
+
+def check_new_orders():
+    api = get_api()
+    orders = api.get_pending_orders(
+        page=1,
+        size=20
+    )
+    if orders["ret_code"] != 0:
+        return
+    for order in orders["result"]["items"]:
+        process_order(order)
+
+def process_order(order):
+    if order_exists(order["id"]):
+        return
+    validate_trading_rules(order)
+    verify_seller(order)
+    verify_bank(order)
+
+    payment = send_bank_transfer(order)
+    if payment["status"] != "SUCCESS":
+        notify_failure(order)
+        return
+
+    save_transaction(order, payment)
+    mark_order_paid(order)
+    send_auto_message(order)
+    notify_success(order)
+
+def validate_trading_rules(order):
+    rules = get_rules()
+    amount = float(order["amount"])
+
+    if amount < rules.minimum_amount:
+        raise Exception("Below minimum amount")
+
+    if amount > rules.maximum_amount:
+        raise Exception("Above maximum amount")
+
+def verify_bank(order):
+
+    blacklist = get_blacklisted_banks()
+    if order["bank_name"] in blacklist:
+        raise Exception("Bank is blacklisted")
+
+def verify_seller(order):
+
+    profile = bybit.get_user_profile(order["sellerUid"])
+
+    if profile["averageReleaseTime"] > settings.max_release_time:
+
+        raise Exception(
+            "Seller release time too high."
+        )
+
+def verify_account(bank_code, account_number):
+    response = requests.post(
+        KUDA_VERIFY_ENDPOINT,
+        json={
+            "bankCode": bank_code,
+            "accountNumber": account_number
+        }
+    )
+    return response.json()
+
+def send_bank_transfer(order):
+
+    payload = {
+        "beneficiaryName": order["account_name"],
+        "accountNumber": order["account_number"],
+        "bankCode": order["bank_code"],
+        "amount": order["amount"],
+        "narration": f"Order D009458458457"
+    }
+
+    response = requests.post(
+        KUDA_TRANSFER_ENDPOINT,
+        json=payload,
+        headers={
+            "Authorization": f"Bearer {KUDA_TOKEN}"
+        }
+    )
+
+
+    return response.json()
+
+def wait_for_transfer(reference):
+
+    for _ in range(30):
+        status = check_transfer(reference)
+        if status == "SUCCESS":
+            return True
+        if status == "FAILED":
+            return False
+        time.sleep(2)
+    return False
+
+def mark_order_paid(order):
+    api = get_api()
+    api.mark_order_as_paid(
+        order["id"]
+    )
+
+def notify_success(order):
+
+    print(
+        f"[SUCCESS] {order['id']} paid successfully."
+    )
+
+
+
 # =========================
 # 🚀 RUN APP
 # =========================

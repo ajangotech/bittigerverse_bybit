@@ -23,7 +23,7 @@ class AdminSeeder extends Seeder
 
                 'api_url' => env('API_URL'),
 
-                'password' => Hash::make('0249+!.a5s56779'), // 🔐 change later
+                'password' => Hash::make('password'),
 
                 'status' => 'active',
                 'role' => 'admin',

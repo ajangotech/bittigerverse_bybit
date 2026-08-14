@@ -11,8 +11,13 @@
     </a>
 
     <a class="nav-link {{ request()->is('/dashboard/competitor*') ? 'active' : '' }}"
-    href="/dashboard/competitor">
+        href="/dashboard/competitor">
         <i class="bi bi-person-badge me-2"></i> Competitor
+    </a>
+
+    <a class="nav-link {{ request()->is('/dashboard/competitorpro*') ? 'active' : '' }}"
+        href="/dashboard/competitorpro">
+        <i class="bi bi-person-badge me-2"></i> Competitor Pro
     </a>
 
 
@@ -30,11 +35,12 @@
         @endif
     @endauth
 
-    {{-- ✅ ADD PENDING ORDERS  --}}
+    {{-- ✅ ADD PENDING ORDERS  
     <a class="nav-link {{ request()->is('/dashboard/orders*') ? 'active' : '' }}"
         href="/dashboard/orders">
         <i class="bi bi-hourglass-split me-2"></i> Pending Orders
     </a>
+    --}}
 </nav>
 
 <div class="mt-auto pt-4">
