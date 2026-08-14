@@ -100,7 +100,7 @@
                         </div>
                         <label class="small text-muted mb-1">Set Re-edit Timer:</label>
                         <select class="form-select form-select-sm" id="plusTimer">
-                            <option value="60000">1.0 Minute</option>
+                            <option value="60000">1.0 Minutes</option>
                             <option value="90000">1.5 Minutes</option>
                             <option value="120000">2.0 Minutes</option>
                             <option value="150000">2.5 Minutes</option>
@@ -327,7 +327,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | 🚀 COMPETITOR PLUS LOGIC (Aggressive Re-edit & Re-fetch Loop)
+        | 🚀 COMPETITOR PLUS LOGIC (Aggressive Re-edit & 1-Minute Retry Loop)
         |--------------------------------------------------------------------------
         */
         async function executeCompetitorPlusLogic() {
@@ -337,19 +337,19 @@
             // Stay in this loop until the edit succeeds (or Plus is turned off)
             while (!success && tracking && plusModeToggle.checked) {
                 
-                // If it failed previously, wait 1 second and RE-FETCH fresh prices
+                // If it failed previously, wait exactly 1 MINUTE (60000ms) and RE-FETCH fresh prices
                 if (!isFirstAttempt) {
-                    document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Edit Failed. Retrying in 1s...</span>';
-                    await sleep(1000);
-                    await fetchCompetitors(); 
+                    document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Edit Failed. Retrying in 1 Min...</span>';
+                    await sleep(60000); // 1-minute retry wait time
+                    await fetchCompetitors(); // Re-select reference merchants and get current prices
                 }
                 isFirstAttempt = false;
 
                 const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
                 
                 if (!merchant) {
-                    document.getElementById('trackingStatus').innerHTML = 'Plus: Merchant missing from Top 10';
-                    break; // Exit retry loop, wait for main timer
+                    document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Merchant missing. Retrying in 1 Min...</span>';
+                    continue; // Skip straight to the 1-minute delay and try again
                 }
 
                 const currentPrice = parseFloat(merchant.price);
@@ -362,6 +362,9 @@
                 if (success) {
                     document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Plus: Updated (${currentPrice})</span>`;
                     lastMerchantPrice = currentPrice; // Sync tracker
+                    
+                    // Loop breaks here on success. The system will return to startMasterLoop() 
+                    // and wait for the main timer (e.g., 3 minutes) before doing this all again.
                 }
             }
         }
@@ -508,12 +511,13 @@
         |--------------------------------------------------------------------------
         | MASTER ASYNC POLLING ENGINE
         |--------------------------------------------------------------------------
+        | Replaces setInterval to prevent race conditions. Checks if Competitor Plus
+        | is active and dynamically manages the delays and fetch logic.
         */
         async function startMasterLoop() {
             while (true) {
                 // Determine the current wait time based on mode
                 const isPlusMode = plusModeToggle.checked;
-                // Default delay is 3000ms (3 seconds) for classic Ratchet mode. Plus Mode reads the dropdown in ms.
                 let currentDelay = isPlusMode ? parseInt(plusTimer.value) : 3000;
 
                 if (selectedToken && selectedCurrency) {
