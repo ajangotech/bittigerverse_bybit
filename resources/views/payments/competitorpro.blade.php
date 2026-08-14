@@ -143,6 +143,8 @@
         let adsData = [];
         let competitors = [];
 
+        let lastSuccessfulUpdateTime = Date.now(); // Tracks the exact time of the last edit
+
         let selectedMerchantId = null;
         let selectedMerchantName = null;
 
@@ -327,45 +329,75 @@
 
         /*
         |--------------------------------------------------------------------------
-        | 🚀 COMPETITOR PLUS LOGIC (Aggressive Re-edit & 1-Minute Retry Loop)
+        | 🚀 COMPETITOR PLUS LOGIC (Constant Tracking + Forced Timer Refresh)
         |--------------------------------------------------------------------------
         */
         async function executeCompetitorPlusLogic() {
-            let success = false;
-            let isFirstAttempt = true;
+            // 1. Get the target timer value in milliseconds (e.g., 180000 for 3 mins)
+            const plusTimerMs = parseInt(document.getElementById('plusTimer').value);
+            
+            // 2. Calculate how much time has passed since our last successful update
+            const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
 
-            // Stay in this loop until the edit succeeds (or Plus is turned off)
-            while (!success && tracking && plusModeToggle.checked) {
-                
-                // If it failed previously, wait exactly 1 MINUTE (60000ms) and RE-FETCH fresh prices
-                if (!isFirstAttempt) {
-                    document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Edit Failed. Retrying in 1 Min...</span>';
-                    await sleep(60000); // 1-minute retry wait time
-                    await fetchCompetitors(); // Re-select reference merchants and get current prices
-                }
-                isFirstAttempt = false;
+            // 3. Find our target merchant
+            const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
+            if (!merchant) return; // Wait for next loop if merchant isn't found
 
-                const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
-                
-                if (!merchant) {
-                    document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Merchant missing. Retrying in 1 Min...</span>';
-                    continue; // Skip straight to the 1-minute delay and try again
-                }
+            let currentPrice = parseFloat(merchant.price);
+            
+            // 4. Evaluate our two trigger conditions
+            const priceChanged = currentPrice !== lastMerchantPrice;
+            const timerExceeded = timeSinceLastUpdate >= plusTimerMs;
 
-                const currentPrice = parseFloat(merchant.price);
-                document.getElementById('merchantPrice').innerHTML = currentPrice;
-                document.getElementById('trackingStatus').innerHTML = '<span class="text-info fw-bold">Plus: Editing Ad...</span>';
+            // IF the market moved OR our timer finished, we execute an update!
+            if (priceChanged || timerExceeded) {
+                let success = false;
+                let isFirstAttempt = true;
 
-                // Attempt to update Ad with the exact current price
-                success = await singleUpdateAdAttempt(currentPrice, merchant.nickName);
-
-                if (success) {
-                    document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Plus: Updated (${currentPrice})</span>`;
-                    lastMerchantPrice = currentPrice; // Sync tracker
+                while (!success && tracking && plusModeToggle.checked) {
                     
-                    // Loop breaks here on success. The system will return to startMasterLoop() 
-                    // and wait for the main timer (e.g., 3 minutes) before doing this all again.
+                    // If retry, wait 1 minute and re-fetch fresh market data
+                    if (!isFirstAttempt) {
+                        document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Edit Failed. Retrying in 1 Min...</span>';
+                        await sleep(60000); 
+                        await fetchCompetitors(); 
+                        
+                        // Re-find merchant and update current price so we don't post outdated prices
+                        const retryMerchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
+                        if (retryMerchant) {
+                            currentPrice = parseFloat(retryMerchant.price);
+                        } else {
+                            continue; // Merchant gone, loop again
+                        }
+                    }
+                    isFirstAttempt = false;
+
+                    document.getElementById('merchantPrice').innerHTML = currentPrice;
+                    
+                    // Show why we are updating (Price Change vs Forced Timer)
+                    const updateReason = priceChanged ? "Price Changed" : "Timer Reached";
+                    document.getElementById('trackingStatus').innerHTML = `<span class="text-info fw-bold">Plus: ${updateReason} - Editing Ad...</span>`;
+
+                    // Attempt to update Ad
+                    success = await singleUpdateAdAttempt(currentPrice, merchant.nickName);
+
+                    if (success) {
+                        document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Plus: Updated (${currentPrice})</span>`;
+                        
+                        // --- CRITICAL UPDATES ---
+                        lastMerchantPrice = currentPrice; // Save the new price
+                        lastSuccessfulUpdateTime = Date.now(); // RESET THE COUNTDOWN TIMER!
+                    }
                 }
+            } else {
+                // Market is stable AND timer hasn't finished yet.
+                // Calculate remaining time and show it on the UI so you know it's working.
+                let timeRemaining = plusTimerMs - timeSinceLastUpdate;
+                let mins = Math.floor(timeRemaining / 60000);
+                let secs = Math.floor((timeRemaining % 60000) / 1000);
+                
+                document.getElementById('trackingStatus').innerHTML = 
+                    `<span class="text-muted">Plus: Market Stable. Force edit in ${mins}m ${secs}s</span>`;
             }
         }
 
