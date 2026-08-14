@@ -100,17 +100,17 @@
                         </div>
                         <label class="small text-muted mb-1">Set Re-edit Timer:</label>
                         <select class="form-select form-select-sm" id="plusTimer">
-                            <option value="1000">1.0 Second</option>
-                            <option value="1500">1.5 Seconds</option>
-                            <option value="2000">2.0 Seconds</option>
-                            <option value="2500">2.5 Seconds</option>
-                            <option value="3000" selected>3.0 Seconds</option>
-                            <option value="3500">3.5 Seconds</option>
-                            <option value="4000">4.0 Seconds</option>
-                            <option value="4500">4.5 Seconds</option>
-                            <option value="5000">5.0 Seconds</option>
-                            <option value="5500">5.5 Seconds</option>
-                            <option value="6000">6.0 Seconds</option>
+                            <option value="60000">1.0 Minute</option>
+                            <option value="90000">1.5 Minutes</option>
+                            <option value="120000">2.0 Minutes</option>
+                            <option value="150000">2.5 Minutes</option>
+                            <option value="180000" selected>3.0 Minutes</option>
+                            <option value="210000">3.5 Minutes</option>
+                            <option value="240000">4.0 Minutes</option>
+                            <option value="270000">4.5 Minutes</option>
+                            <option value="300000">5.0 Minutes</option>
+                            <option value="330000">5.5 Minutes</option>
+                            <option value="360000">6.0 Minutes</option>
                         </select>
                     </div>
 
@@ -153,13 +153,15 @@
         let selectedCurrency = null;
 
         let tracking = false;
+        let updatingAd = false;
+        let targetAdPrice = null; 
 
         // Helper: Async Sleep
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         /*
         |--------------------------------------------------------------------------
-        | Toast Notifications
+        | Toast
         |--------------------------------------------------------------------------
         */
         function toast(message, type = 'success') {
@@ -200,7 +202,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Advertisement Selection Handler
+        | Advertisement Selected
         |--------------------------------------------------------------------------
         */
         adsSelect.addEventListener('change', async function () {
@@ -222,7 +224,7 @@
             document.getElementById('maxText').innerHTML = ad.maxAmount;
             document.getElementById('statusText').innerHTML = ad.status ?? '---';
 
-            // Reset Tracking parameters
+            // Reset Tracking
             selectedMerchantId = null;
             selectedMerchantName = null;
             referencePrice = null;
@@ -265,13 +267,13 @@
                 competitors = data.top_10_competitors || [];
                 renderCompetitors();
             } catch (e) {
-                console.error("Error fetching competitors:", e);
+                console.log(e);
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Render Competitors Dropdown
+        | Render Competitors
         |--------------------------------------------------------------------------
         */
         function renderCompetitors() {
@@ -289,7 +291,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Merchant Selection Handler
+        | Merchant Selected
         |--------------------------------------------------------------------------
         */
         merchantSelect.addEventListener('change', async function () {
@@ -306,7 +308,6 @@
             document.getElementById('merchantPrice').innerHTML = referencePrice;
             document.getElementById('trackingStatus').innerHTML = 'Tracking Initiated';
 
-            // Store tracking initiation in DB
             await fetch("{{ route('dashboard.com.store') }}", {
                 method: 'POST',
                 headers: {
@@ -318,76 +319,54 @@
                     username: selectedMerchantName,
                     price: referencePrice
                 })
-            }).catch(e => console.error(e));
+            });
 
-            // Sync ad immediately upon selection
-            await executeCompetitorPlusLogic();
+            await updateAdPrice(referencePrice);
             toast(`Tracking ${selectedMerchantName}`);
         });
 
         /*
         |--------------------------------------------------------------------------
-        | 🚀 COMPETITOR PLUS LOGIC (Dynamic Up & Down Tracking)
+        | 🚀 COMPETITOR PLUS LOGIC (Aggressive Re-edit & Re-fetch Loop)
         |--------------------------------------------------------------------------
         */
         async function executeCompetitorPlusLogic() {
-            const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
-            
-            if (!merchant) {
-                document.getElementById('trackingStatus').innerHTML = '<span class="text-warning">Plus: Merchant not in Top 10</span>';
-                return;
-            }
-
-            const targetPrice = parseFloat(merchant.price);
-            document.getElementById('merchantPrice').innerHTML = targetPrice;
-
-            const currentAd = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
-            if (!currentAd) return;
-
-            const currentAdPrice = parseFloat(currentAd.price);
-
-            // GUARD 1: If current ad price already matches competitor price, DO NOTHING.
-            if (currentAdPrice === targetPrice) {
-                document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Synced (${targetPrice})</span>`;
-                return;
-            }
-
-            // GUARD 2: Price changed! Attempt to update with a maximum of 3 retries.
-            document.getElementById('trackingStatus').innerHTML = `<span class="text-info fw-bold">Updating to ${targetPrice}...</span>`;
-
             let success = false;
-            let retries = 0;
-            const maxRetries = 3;
+            let isFirstAttempt = true;
 
-            while (!success && retries < maxRetries && tracking && plusModeToggle.checked) {
-                if (retries > 0) {
-                    document.getElementById('trackingStatus').innerHTML = `<span class="text-danger">Failed. Retry ${retries}/${maxRetries} in 1s...</span>`;
+            // Stay in this loop until the edit succeeds (or Plus is turned off)
+            while (!success && tracking && plusModeToggle.checked) {
+                
+                // If it failed previously, wait 1 second and RE-FETCH fresh prices
+                if (!isFirstAttempt) {
+                    document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Edit Failed. Retrying in 1s...</span>';
                     await sleep(1000);
-                    await fetchCompetitors(); // Re-fetch market before retrying
+                    await fetchCompetitors(); 
+                }
+                isFirstAttempt = false;
+
+                const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
+                
+                if (!merchant) {
+                    document.getElementById('trackingStatus').innerHTML = 'Plus: Merchant missing from Top 10';
+                    break; // Exit retry loop, wait for main timer
                 }
 
-                retries++;
-                
-                // Get fresh merchant price in case it shifted during re-fetch
-                const updatedMerchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
-                const priceToSet = updatedMerchant ? parseFloat(updatedMerchant.price) : targetPrice;
+                const currentPrice = parseFloat(merchant.price);
+                document.getElementById('merchantPrice').innerHTML = currentPrice;
+                document.getElementById('trackingStatus').innerHTML = '<span class="text-info fw-bold">Plus: Editing Ad...</span>';
 
-                success = await singleUpdateAdAttempt(priceToSet, merchant.nickName);
-            }
+                // Attempt to update Ad with the exact current price
+                success = await singleUpdateAdAttempt(currentPrice, merchant.nickName);
 
-            if (success) {
-                document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Updated to ${targetPrice}</span>`;
-                lastMerchantPrice = targetPrice;
-            } else {
-                document.getElementById('trackingStatus').innerHTML = `<span class="text-danger fw-bold">Update Failed after ${maxRetries} attempts</span>`;
+                if (success) {
+                    document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Plus: Updated (${currentPrice})</span>`;
+                    lastMerchantPrice = currentPrice; // Sync tracker
+                }
             }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Single Attempt Update Helper
-        |--------------------------------------------------------------------------
-        */
+        // Dedicated single-shot update function for Plus Mode
         async function singleUpdateAdAttempt(priceToUpdate, username) {
             const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
             if (!ad) return false;
@@ -409,11 +388,11 @@
                 const result = await res.json();
 
                 if (res.ok && !result.error) {
-                    ad.price = priceToUpdate; // Update in-memory state
+                    ad.price = priceToUpdate;
                     document.getElementById('currentPrice').innerHTML = priceToUpdate;
-                    toast(`Ad price updated to ${priceToUpdate}`);
+                    toast(`Competitor Plus: Ad updated to ${priceToUpdate}`);
                     
-                    // Log update to backend DB
+                    // Update database
                     await fetch("{{ route('dashboard.com.store') }}", {
                         method: 'POST',
                         headers: {
@@ -425,20 +404,20 @@
                             username: username,
                             price: priceToUpdate
                         })
-                    }).catch(e => console.error(e));
+                    }).catch(e => console.log(e));
 
-                    return true;
+                    return true; // Success! Break retry loop.
                 } else {
-                    return false;
+                    return false; // Error (e.g., price invalid). Triggers 1s retry.
                 }
             } catch (e) {
-                return false;
+                return false; // Network error. Triggers 1s retry.
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Classic Ratchet Logic (Up-Only Mode)
+        | Track Merchant (Classic Ratchet / Up-Only Mode)
         |--------------------------------------------------------------------------
         */
         async function trackMerchantRatchet() {
@@ -460,23 +439,85 @@
             document.getElementById('trackingStatus').innerHTML = 'Tracking Upwards';
             lastMerchantPrice = currentPrice;
 
-            const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
-            if (ad) {
-                await singleUpdateAdAttempt(currentPrice, merchant.nickName);
-            }
+            await updateAdPrice(currentPrice);
+
+            try {
+                await fetch("{{ route('dashboard.com.store') }}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        merchant_id: merchant.id,
+                        username: merchant.nickName,
+                        price: currentPrice
+                    })
+                });
+            } catch (e) { console.log(e); }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Master Engine Loop
+        | Original Update Ad (Used by Classic Ratchet Mode)
+        |--------------------------------------------------------------------------
+        */
+        async function updateAdPrice(newPrice) {
+            targetAdPrice = newPrice;
+            if (updatingAd) return;
+            updatingAd = true;
+
+            while (true) {
+                const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
+                if (!ad) {
+                    updatingAd = false;
+                    return;
+                }
+
+                const priceToUpdate = targetAdPrice;
+                const payload = {
+                    ...ad, price: priceToUpdate, api_key: API_KEY, api_secret: API_SECRET
+                };
+
+                try {
+                    const res = await fetch(`${API_URL}/update-ad`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await res.json();
+
+                    if (res.ok && !result.error) {
+                        ad.price = priceToUpdate;
+                        document.getElementById('currentPrice').innerHTML = priceToUpdate;
+                        toast(`Ad updated to ${priceToUpdate}`);
+                        
+                        if (targetAdPrice === priceToUpdate) break;
+                    } else {
+                        await sleep(1000);
+                    }
+                } catch (e) {
+                    await sleep(1000);
+                }
+            }
+            updatingAd = false;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MASTER ASYNC POLLING ENGINE
         |--------------------------------------------------------------------------
         */
         async function startMasterLoop() {
             while (true) {
+                // Determine the current wait time based on mode
                 const isPlusMode = plusModeToggle.checked;
-                const currentDelay = isPlusMode ? parseInt(plusTimer.value) : 3000;
+                // Default delay is 3000ms (3 seconds) for classic Ratchet mode. Plus Mode reads the dropdown in ms.
+                let currentDelay = isPlusMode ? parseInt(plusTimer.value) : 3000;
 
                 if (selectedToken && selectedCurrency) {
+                    // Always fetch latest market snapshot first
                     await fetchCompetitors();
 
                     if (tracking && selectedMerchantId) {
@@ -488,11 +529,12 @@
                     }
                 }
 
+                // Wait for the requested timer before starting the next cycle
                 await sleep(currentDelay);
             }
         }
 
-        // Start execution loop
+        // Ignite the engine
         startMasterLoop();
 
     });
