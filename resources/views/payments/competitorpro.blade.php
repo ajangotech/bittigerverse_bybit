@@ -90,6 +90,13 @@
                         <option value="">Loading competitors...</option>
                     </select>
 
+                    <div class="border rounded p-3">
+                        <p><b>Merchant:</b> <span id="merchantName">---</span></p>
+                        <p><b>Merchant Price:</b> <span id="merchantPrice" class="text-primary fw-bold">---</span></p>
+                        <p><b>Tracking:</b> <span id="trackingStatus">Stopped</span></p>
+                        <p class="mb-0"><b>Time to Re-edit:</b> <span id="plusCountdownText" class="text-danger fw-bold">---</span></p>
+                    </div>
+
                     <!-- 🚀 Competitor Plus Panel -->
                     <div class="p-3 mb-3 plus-panel">
                         <div class="form-check form-switch mb-2">
@@ -111,13 +118,9 @@
                             <option value="300000">5.0 Minutes</option>
                             <option value="330000">5.5 Minutes</option>
                             <option value="360000">6.0 Minutes</option>
+                            <option value="390000">6.5 Minutes</option>
+                            <option value="420000">7.0 Minutes</option>
                         </select>
-                    </div>
-
-                    <div class="border rounded p-3">
-                        <p><b>Merchant:</b> <span id="merchantName">---</span></p>
-                        <p><b>Merchant Price:</b> <span id="merchantPrice" class="text-primary fw-bold">---</span></p>
-                        <p><b>Tracking:</b> <span id="trackingStatus">Stopped</span></p>
                     </div>
 
                 </div>
@@ -139,11 +142,12 @@
         const merchantSelect = document.getElementById('merchantSelect');
         const plusModeToggle = document.getElementById('plusModeToggle');
         const plusTimer = document.getElementById('plusTimer');
+        const countdownEl = document.getElementById('plusCountdownText');
 
         let adsData = [];
         let competitors = [];
 
-        let lastSuccessfulUpdateTime = Date.now(); // Tracks the exact time of the last edit
+        let lastSuccessfulUpdateTime = Date.now(); 
 
         let selectedMerchantId = null;
         let selectedMerchantName = null;
@@ -158,14 +162,8 @@
         let updatingAd = false;
         let targetAdPrice = null; 
 
-        // Helper: Async Sleep
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-        /*
-        |--------------------------------------------------------------------------
-        | Toast
-        |--------------------------------------------------------------------------
-        */
         function toast(message, type = 'success') {
             const t = document.getElementById('toast');
             t.innerHTML = message;
@@ -173,11 +171,15 @@
             setTimeout(() => { t.className = 'app-toast'; }, 3000);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Load Advertisements
-        |--------------------------------------------------------------------------
-        */
+        if (plusModeToggle) {
+            plusModeToggle.addEventListener('change', function() {
+                if (this.checked) {
+                    lastSuccessfulUpdateTime = Date.now();
+                    toast('Competitor Plus Activated');
+                }
+            });
+        }
+
         async function loadAds() {
             try {
                 const res = await fetch(`${API_URL}/ads`, {
@@ -202,11 +204,6 @@
         }
         loadAds();
 
-        /*
-        |--------------------------------------------------------------------------
-        | Advertisement Selected
-        |--------------------------------------------------------------------------
-        */
         adsSelect.addEventListener('change', async function () {
             const ad = adsData.find(x => String(x.id) === String(this.value));
 
@@ -226,7 +223,6 @@
             document.getElementById('maxText').innerHTML = ad.maxAmount;
             document.getElementById('statusText').innerHTML = ad.status ?? '---';
 
-            // Reset Tracking
             selectedMerchantId = null;
             selectedMerchantName = null;
             referencePrice = null;
@@ -241,11 +237,6 @@
             await fetchCompetitors();
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | Fetch Competitors
-        |--------------------------------------------------------------------------
-        */
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
 
@@ -268,16 +259,19 @@
 
                 competitors = data.top_10_competitors || [];
                 renderCompetitors();
+
+                if (tracking && selectedMerchantId) {
+                    if (plusModeToggle && plusModeToggle.checked) {
+                        await trackMerchantPlus();
+                    } else {
+                        await trackMerchantRatchet();
+                    }
+                }
             } catch (e) {
                 console.log(e);
             }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Render Competitors
-        |--------------------------------------------------------------------------
-        */
         function renderCompetitors() {
             const selected = selectedMerchantId;
             merchantSelect.innerHTML = `<option value="">Select Merchant</option>`;
@@ -291,11 +285,6 @@
             });
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Merchant Selected
-        |--------------------------------------------------------------------------
-        */
         merchantSelect.addEventListener('change', async function () {
             const option = this.options[this.selectedIndex];
             if (!option.value) return;
@@ -304,157 +293,18 @@
             selectedMerchantName = option.dataset.name;
             referencePrice = parseFloat(option.dataset.price);
             lastMerchantPrice = referencePrice;
+            
+            lastSuccessfulUpdateTime = Date.now(); 
             tracking = true;
 
             document.getElementById('merchantName').innerHTML = selectedMerchantName;
             document.getElementById('merchantPrice').innerHTML = referencePrice;
             document.getElementById('trackingStatus').innerHTML = 'Tracking Initiated';
 
-            await fetch("{{ route('dashboard.com.store') }}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                },
-                body: JSON.stringify({
-                    merchant_id: selectedMerchantId,
-                    username: selectedMerchantName,
-                    price: referencePrice
-                })
-            });
-
             await updateAdPrice(referencePrice);
             toast(`Tracking ${selectedMerchantName}`);
         });
 
-        /*
-        |--------------------------------------------------------------------------
-        | 🚀 COMPETITOR PLUS LOGIC (Constant Tracking + Forced Timer Refresh)
-        |--------------------------------------------------------------------------
-        */
-        async function executeCompetitorPlusLogic() {
-            // 1. Get the target timer value in milliseconds (e.g., 180000 for 3 mins)
-            const plusTimerMs = parseInt(document.getElementById('plusTimer').value);
-            
-            // 2. Calculate how much time has passed since our last successful update
-            const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
-
-            // 3. Find our target merchant
-            const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
-            if (!merchant) return; // Wait for next loop if merchant isn't found
-
-            let currentPrice = parseFloat(merchant.price);
-            
-            // 4. Evaluate our two trigger conditions
-            const priceChanged = currentPrice !== lastMerchantPrice;
-            const timerExceeded = timeSinceLastUpdate >= plusTimerMs;
-
-            // IF the market moved OR our timer finished, we execute an update!
-            if (priceChanged || timerExceeded) {
-                let success = false;
-                let isFirstAttempt = true;
-
-                while (!success && tracking && plusModeToggle.checked) {
-                    
-                    // If retry, wait 1 minute and re-fetch fresh market data
-                    if (!isFirstAttempt) {
-                        document.getElementById('trackingStatus').innerHTML = '<span class="text-danger">Plus: Edit Failed. Retrying in 1 Min...</span>';
-                        await sleep(60000); 
-                        await fetchCompetitors(); 
-                        
-                        // Re-find merchant and update current price so we don't post outdated prices
-                        const retryMerchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
-                        if (retryMerchant) {
-                            currentPrice = parseFloat(retryMerchant.price);
-                        } else {
-                            continue; // Merchant gone, loop again
-                        }
-                    }
-                    isFirstAttempt = false;
-
-                    document.getElementById('merchantPrice').innerHTML = currentPrice;
-                    
-                    // Show why we are updating (Price Change vs Forced Timer)
-                    const updateReason = priceChanged ? "Price Changed" : "Timer Reached";
-                    document.getElementById('trackingStatus').innerHTML = `<span class="text-info fw-bold">Plus: ${updateReason} - Editing Ad...</span>`;
-
-                    // Attempt to update Ad
-                    success = await singleUpdateAdAttempt(currentPrice, merchant.nickName);
-
-                    if (success) {
-                        document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Plus: Updated (${currentPrice})</span>`;
-                        
-                        // --- CRITICAL UPDATES ---
-                        lastMerchantPrice = currentPrice; // Save the new price
-                        lastSuccessfulUpdateTime = Date.now(); // RESET THE COUNTDOWN TIMER!
-                    }
-                }
-            } else {
-                // Market is stable AND timer hasn't finished yet.
-                // Calculate remaining time and show it on the UI so you know it's working.
-                let timeRemaining = plusTimerMs - timeSinceLastUpdate;
-                let mins = Math.floor(timeRemaining / 60000);
-                let secs = Math.floor((timeRemaining % 60000) / 1000);
-                
-                document.getElementById('trackingStatus').innerHTML = 
-                    `<span class="text-muted">Plus: Market Stable. Force edit in ${mins}m ${secs}s</span>`;
-            }
-        }
-
-        // Dedicated single-shot update function for Plus Mode
-        async function singleUpdateAdAttempt(priceToUpdate, username) {
-            const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
-            if (!ad) return false;
-
-            const payload = {
-                ...ad,
-                price: priceToUpdate,
-                api_key: API_KEY,
-                api_secret: API_SECRET
-            };
-
-            try {
-                const res = await fetch(`${API_URL}/update-ad`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                const result = await res.json();
-
-                if (res.ok && !result.error) {
-                    ad.price = priceToUpdate;
-                    document.getElementById('currentPrice').innerHTML = priceToUpdate;
-                    toast(`Competitor Plus: Ad updated to ${priceToUpdate}`);
-                    
-                    // Update database
-                    await fetch("{{ route('dashboard.com.store') }}", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify({
-                            merchant_id: selectedMerchantId,
-                            username: username,
-                            price: priceToUpdate
-                        })
-                    }).catch(e => console.log(e));
-
-                    return true; // Success! Break retry loop.
-                } else {
-                    return false; // Error (e.g., price invalid). Triggers 1s retry.
-                }
-            } catch (e) {
-                return false; // Network error. Triggers 1s retry.
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Track Merchant (Classic Ratchet / Up-Only Mode)
-        |--------------------------------------------------------------------------
-        */
         async function trackMerchantRatchet() {
             const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
 
@@ -473,30 +323,47 @@
 
             document.getElementById('trackingStatus').innerHTML = 'Tracking Upwards';
             lastMerchantPrice = currentPrice;
-
             await updateAdPrice(currentPrice);
-
-            try {
-                await fetch("{{ route('dashboard.com.store') }}", {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify({
-                        merchant_id: merchant.id,
-                        username: merchant.nickName,
-                        price: currentPrice
-                    })
-                });
-            } catch (e) { console.log(e); }
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Original Update Ad (Used by Classic Ratchet Mode)
-        |--------------------------------------------------------------------------
-        */
+        async function trackMerchantPlus() {
+            const plusTimerMs = parseInt(document.getElementById('plusTimer')?.value) || 0;
+            const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
+
+            // 1. Check if the current merchant is still in the Top 10
+            const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
+
+            if (!merchant) {
+                document.getElementById('trackingStatus').innerHTML = 'Plus: Merchant lost. Waiting...';
+                return;
+            }
+
+            const currentPrice = parseFloat(merchant.price);
+            document.getElementById('merchantPrice').innerHTML = currentPrice;
+
+            // 2. Evaluate Timer Expiration (Re-edit / Re-sync to the SAME merchant)
+            if (timeSinceLastUpdate >= plusTimerMs) {
+                toast(`Timer expired! Re-editing to ${selectedMerchantName}'s current price (${currentPrice})`, 'success');
+                
+                lastMerchantPrice = currentPrice;
+                lastSuccessfulUpdateTime = Date.now(); // Reset timer countdown
+                
+                document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Timer Resync</span>';
+                await updateAdPrice(currentPrice);
+                return;
+            }
+
+            // 3. Process normal upward movement (Ratchet behavior if competitor increases price before timer)
+            if (currentPrice > lastMerchantPrice) {
+                document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Tracking Upwards</span>';
+                lastMerchantPrice = currentPrice;
+                lastSuccessfulUpdateTime = Date.now(); // Reset timer on price jump
+                await updateAdPrice(currentPrice);
+            } else {
+                document.getElementById('trackingStatus').innerHTML = `Maintaining (${lastMerchantPrice})`;
+            }
+        }
+
         async function updateAdPrice(newPrice) {
             targetAdPrice = newPrice;
             if (updatingAd) return;
@@ -506,12 +373,16 @@
                 const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
                 if (!ad) {
                     updatingAd = false;
+                    toast('Please select your Ad first.', 'error');
                     return;
                 }
 
                 const priceToUpdate = targetAdPrice;
                 const payload = {
-                    ...ad, price: priceToUpdate, api_key: API_KEY, api_secret: API_SECRET
+                    ...ad,
+                    price: priceToUpdate,
+                    api_key: API_KEY,
+                    api_secret: API_SECRET
                 };
 
                 try {
@@ -528,50 +399,44 @@
                         document.getElementById('currentPrice').innerHTML = priceToUpdate;
                         toast(`Ad updated to ${priceToUpdate}`);
                         
-                        if (targetAdPrice === priceToUpdate) break;
+                        if (targetAdPrice === priceToUpdate) break; 
                     } else {
+                        toast('Retrying in 1 second...', 'error');
                         await sleep(1000);
                     }
                 } catch (e) {
+                    toast('Network error. Retrying in 1 second...', 'error');
                     await sleep(1000);
                 }
             }
             updatingAd = false;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | MASTER ASYNC POLLING ENGINE
-        |--------------------------------------------------------------------------
-        | Replaces setInterval to prevent race conditions. Checks if Competitor Plus
-        | is active and dynamically manages the delays and fetch logic.
-        */
-        async function startMasterLoop() {
-            while (true) {
-                // Determine the current wait time based on mode
-                const isPlusMode = plusModeToggle.checked;
-                let currentDelay = isPlusMode ? parseInt(plusTimer.value) : 3000;
-
-                if (selectedToken && selectedCurrency) {
-                    // Always fetch latest market snapshot first
-                    await fetchCompetitors();
-
-                    if (tracking && selectedMerchantId) {
-                        if (isPlusMode) {
-                            await executeCompetitorPlusLogic();
-                        } else {
-                            await trackMerchantRatchet();
-                        }
-                    }
-                }
-
-                // Wait for the requested timer before starting the next cycle
-                await sleep(currentDelay);
+        // Market Poll Loop
+        setInterval(() => {
+            if (selectedToken && selectedCurrency) {
+                fetchCompetitors();
             }
-        }
+        }, 3000);
 
-        // Ignite the engine
-        startMasterLoop();
+        // Visual Countdown Timer UI Loop
+        setInterval(() => {
+            if (tracking && selectedMerchantId && plusModeToggle && plusModeToggle.checked) {
+                const plusTimerMs = parseInt(document.getElementById('plusTimer')?.value) || 0;
+                const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
+                const timeLeft = Math.max(0, plusTimerMs - timeSinceLastUpdate);
+
+                if (timeLeft > 0) {
+                    const mins = Math.floor(timeLeft / 60000);
+                    const secs = Math.floor((timeLeft % 60000) / 1000);
+                    countdownEl.innerHTML = `${mins}m ${secs}s`;
+                } else {
+                    countdownEl.innerHTML = 'Resyncing...';
+                }
+            } else {
+                countdownEl.innerHTML = '---';
+            }
+        }, 1000);
 
     });
 </script>

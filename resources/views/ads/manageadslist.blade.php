@@ -64,31 +64,27 @@
 </style>
 
 <div class="container">
-
     <div class="row g-4">
-
         <!-- MARKET TABLE -->
         <div class="col-md-12">
-
             <div class="card ads-card p-3">
-
                 <h5 class="fw-bold mb-3">
                     📊 Live Bybit P2P Market
                 </h5>
 
                 <div class="row mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Select Token</label>
                         <select class="form-control" id="tokenSelect">
-                            <option value="BTC">BTC</option>
                             <option value="USDT">USDT</option>
+                            <option value="BTC">BTC</option>
                             <option value="ETH">ETH</option>
                             <option value="BNB">BNB</option>
                             <option value="SOL">SOL</option>
                         </select>
                     </div>
 
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label class="form-label">Select Currency</label>
                         <select class="form-control" id="currencySelect">
                             <option value="USD">USD</option>
@@ -98,8 +94,17 @@
                             <option value="CNY">CNY</option>
                         </select>
                     </div>
+                    
+                    <div class="col-md-3">
+                        <label class="form-label">Sort By</label>
+                        <select class="form-control" id="sortBySelect">
+                            <option value="price">Price</option>
+                            <option value="orders">Orders</option>
+                            <option value="completion_rate">Completion Rate</option>
+                        </select>
+                    </div>
 
-                    <div class="col-md-4 d-flex align-items-end">
+                    <div class="col-md-3 d-flex align-items-end">
                         <button style="background:#E37216; border:none;" class="btn text-white w-100" id="filterBtn">
                             Filter
                         </button>
@@ -123,33 +128,28 @@
                         </tbody>
                     </table>
                 </div>
-
             </div>
-
         </div>
-
     </div>
-
 </div>
 
 @endsection
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-
         const API_URL = "{{ auth()->user()->api_url }}";
         const API_KEY = "{{ auth()->user()->bybit_api_key }}";
         const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
         const tokenSelect = document.getElementById("tokenSelect");
         const currencySelect = document.getElementById("currencySelect");
+        const sortBySelect = document.getElementById("sortBySelect");
         const filterBtn = document.getElementById("filterBtn");
-
-        let selectedToken = "BTC";
-        let selectedCurrency = "USD";
-
         const marketTableBody = document.getElementById("marketTableBody");
 
+        let selectedToken = "USDT";
+        let selectedCurrency = "USD";
+        let selectedSortBy = "price";
         let timer = null;
 
         function showToast(msg, type = "success") {
@@ -164,7 +164,9 @@
 
         async function fetchMarket() {
             try {
-                const res = await fetch(`${API_URL}/analyze-market`, {
+                // Adjust the endpoint to `/api/ads` if you are hitting the Python backend directly, 
+                // or keep `/analyze-market` if Laravel is proxying it.
+                const res = await fetch(`${API_URL}/analyze-market`, { 
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -175,18 +177,22 @@
                         side: "0",
                         minAmount: 0,
                         marginPct: 4,
-                        limit: 30
+                        limit: 30,
+                        sortBy: selectedSortBy
                     })
                 });
 
                 const data = await res.json();
 
-                if (!data.status) {
+                // Make sure to access the correct array depending on your Python endpoint's JSON response format
+                const items = data.top_10_competitors || data; 
+
+                if (!items || (data.status === false && !data.top_10_competitors) || data.error) {
                     showToast("Failed to load market", "error");
                     return;
                 }
 
-                renderTable(data.top_10_competitors);
+                renderTable(items);
 
             } catch (err) {
                 console.error(err);
@@ -195,7 +201,6 @@
         }
 
         function renderTable(items) {
-
             if (!items || items.length === 0) {
                 marketTableBody.innerHTML = `
                     <tr>
@@ -209,14 +214,12 @@
             items.forEach(item => {
                 marketTableBody.innerHTML += `
                     <tr>
-                        <td class="big-name">${item.nickName}</td>
-
+                        <td class="big-name">${item.nickName || item.nickname}</td>
                         <td class="big-price">
                             ${parseFloat(item.price).toLocaleString()}
                         </td>
-
                         <td class="small-qty">
-                            ${item.quantity}
+                            ${item.quantity || 'N/A'}
                         </td>
                     </tr>
                 `;
@@ -226,9 +229,10 @@
         filterBtn.addEventListener("click", function () {
             selectedToken = tokenSelect.value;
             selectedCurrency = currencySelect.value;
+            selectedSortBy = sortBySelect.value;
 
             showToast(
-                `Loading ${selectedToken}/${selectedCurrency} market...`
+                `Loading ${selectedToken}/${selectedCurrency} sorted by ${selectedSortBy}...`
             );
 
             startLive();
@@ -247,6 +251,5 @@
         }
 
         startLive();
-
     });
 </script>

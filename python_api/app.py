@@ -179,8 +179,26 @@ def account(data):
 def ads(data):
     try:
         api = get_api(data)
+        
+        # 1. Extract the sortBy parameter from frontend JSON (default to completion_rate)
+        sort_by = data.get("sortBy", "completion_rate")
+        
+        # 2. Define the allowed sorting filters mapped to what Bybit expects
+        allowed_sorting = {
+            "price": "price",
+            "orders": "orders",
+            "completion_rate": "completion_rate"
+        }
+        
+        # 3. Block invalid sorting attempts
+        if sort_by not in allowed_sorting:
+            return jsonify({
+                "error": "Invalid sortBy value. Allowed values are: price, orders, completion_rate",
+                "allowed": list(allowed_sorting.keys())
+            }), 400
 
-        result = api.get_ads_list()
+        # 4. Pass the sorting parameter to your get_ads_list method
+        result = api.get_ads_list(sort_by=allowed_sorting[sort_by])
 
         return jsonify(result)
 
@@ -280,6 +298,9 @@ def analyze_market(data):
         side = str(data.get("side", "0"))  # 0=BUY, 1=SELL
         min_amount = float(data.get("minAmount", 0))
         margin_pct = float(data.get("marginPct", 4))
+        
+        # Extract sortBy parameter (default to "price")
+        sort_by = str(data.get("sortBy", "price")).lower()
 
         ads = api.get_online_ads(
             tokenId=token_id,
@@ -309,6 +330,20 @@ def analyze_market(data):
                 if min_amount > 0 and ad_max < min_amount:
                     continue
 
+                # Parse 30-day order count safely to an integer
+                raw_orders = ad.get("recentOrderNum", 0)
+                try:
+                    recent_orders = int(raw_orders) if raw_orders is not None else 0
+                except (ValueError, TypeError):
+                    recent_orders = 0
+
+                # Parse completion rate safely to a float
+                raw_rate = ad.get("recentExecuteRate", 0)
+                try:
+                    recent_rate = float(str(raw_rate).replace("%", "").strip()) if raw_rate is not None else 0.0
+                except (ValueError, TypeError):
+                    recent_rate = 0.0
+
                 competitors.append({
                     "id": ad.get("id"),
                     "nickName": ad.get("nickName"),
@@ -316,8 +351,8 @@ def analyze_market(data):
                     "minAmount": ad_min,
                     "maxAmount": ad_max,
                     "quantity": ad.get("quantity"),
-                    "recentOrderNum": ad.get("recentOrderNum"),
-                    "recentExecuteRate": ad.get("recentExecuteRate"),
+                    "recentOrderNum": recent_orders,        # 30-Day Total Orders
+                    "recentExecuteRate": recent_rate,      # 30-Day Completion Rate (%)
                     "paymentPeriod": ad.get("paymentPeriod")
                 })
 
@@ -330,33 +365,35 @@ def analyze_market(data):
                 "error": "No valid competitor ads found"
             }), 404
 
-        # BUY Ads -> Highest price first
-        if side == "0":
+        # Compute Best Competitor Price based on side (for pricing margin calculation)
+        if side == "0":  # BUY -> Highest market price
+            top_competitor_price = max(c["price"] for c in competitors)
+            recommended_price = top_competitor_price * (1 + (margin_pct / 100))
+        else:            # SELL -> Lowest market price
+            top_competitor_price = min(c["price"] for c in competitors)
+            recommended_price = top_competitor_price * (1 - (margin_pct / 100))
+
+        # Apply requested sorting filter
+        if sort_by == "orders":
+            # Highest 30-day total orders first
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["recentOrderNum"],
+                reverse=True
+            )
+        elif sort_by == "completion_rate":
+            # Highest 30-day completion rate first
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["recentExecuteRate"],
+                reverse=True
+            )
+        else:
+            # Price sorting (BUY: Highest to Lowest | SELL: Lowest to Highest)
             competitors = sorted(
                 competitors,
                 key=lambda x: x["price"],
-                reverse=True
-            )
-
-            top_competitor_price = competitors[0]["price"]
-
-            # Stay above competitors
-            recommended_price = top_competitor_price * (
-                1 + (margin_pct / 100)
-            )
-
-        # SELL Ads -> Lowest price first
-        else:
-            competitors = sorted(
-                competitors,
-                key=lambda x: x["price"]
-            )
-
-            top_competitor_price = competitors[0]["price"]
-
-            # Stay below competitors
-            recommended_price = top_competitor_price * (
-                1 - (margin_pct / 100)
+                reverse=(side == "0")
             )
 
         top_10 = competitors[:30]
@@ -366,17 +403,12 @@ def analyze_market(data):
             "tokenId": token_id,
             "currencyId": currency_id,
             "side": side,
+            "sort_by": sort_by,
             "ads_found": len(competitors),
 
-            "top_competitor_price": round(
-                top_competitor_price, 2
-            ),
-
+            "top_competitor_price": round(top_competitor_price, 2),
             "margin_percent": margin_pct,
-
-            "recommended_price": round(
-                recommended_price, 2
-            ),
+            "recommended_price": round(recommended_price, 2),
 
             "top_10_competitors": top_10
         })
