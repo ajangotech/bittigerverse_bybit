@@ -267,15 +267,26 @@
                     return;
                 }
 
-                const payload = {
-                    ...currentAd,
-                    status: targetState,
-                    api_key: API_KEY,
-                    api_secret: API_SECRET
-                };
-
                 try {
-                    const res = await fetch(`${API_URL}/update-ad`, {
+                    let endpoint = `${API_URL}/update-ad`;
+                    let payload = {
+                        ...currentAd,
+                        api_key: API_KEY,
+                        api_secret: API_SECRET
+                    };
+
+                    if (targetState === 'OFFLINE') {
+                        endpoint = `${API_URL}/remove-ad`;
+                        payload = {
+                            itemId: currentAd.id,
+                            api_key: API_KEY,
+                            api_secret: API_SECRET
+                        };
+                    } else {
+                        payload.actionType = "ACTIVE";
+                    }
+
+                    const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
