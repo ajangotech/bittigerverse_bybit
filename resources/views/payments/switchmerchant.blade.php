@@ -184,7 +184,7 @@
                 adsData.forEach(ad => {
                     adsSelect.innerHTML += `
                         <option value="${ad.id}">
-                            ID: ${ad.id} | ${ad.tokenId}/${ad.currencyId} | Price: ${ad.price} | Status: ${ad.status}
+                            ${ad.tokenId}/${ad.currencyId} | Price: ${ad.price} | Status: ${ad.status}
                         </option>
                     `;
                 });
