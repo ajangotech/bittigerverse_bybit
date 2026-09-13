@@ -42,6 +42,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard/competitorpro', [CompetitorController::class, 'competitorpro'])->name('dashboard.competitorpro');
 
+    Route::get('/dashboard/switchmerchant', [CompetitorController::class, 'switchmerchant'])->name('dashboard.switchmerchant');
+
     Route::post('/dashboard/change-password', [DashboardController::class, 'changePassword'])->middleware('auth');
 
     Route::post('/logout', [DashboardController::class, 'logout'])->name('logout');

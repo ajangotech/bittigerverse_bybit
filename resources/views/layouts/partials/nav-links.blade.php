@@ -20,6 +20,11 @@
         <i class="bi bi-person-badge me-2"></i> Competitor Pro
     </a>
 
+     <a class="nav-link {{ request()->is('/dashboard/switchmerchant*') ? 'active' : '' }}"
+        href="/dashboard/switchmerchant">
+        <i class="bi bi-person-badge me-2"></i> Switch Merchant
+    </a>
+
 
     <a class="nav-link {{ request()->is('dashboard/adslist*') ? 'active' : '' }}"
        href="/dashboard/adslist">

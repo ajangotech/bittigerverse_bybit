@@ -19,6 +19,11 @@ class CompetitorController extends Controller
         return view('payments.competitorpro', compact('competitors'));
     }
 
+    public function switchmerchant()
+    {
+        return view('payments.switchmerchant');
+    }    
+
     public function store(Request $request)
     {
         $competitor = Competitor::updateOrCreate(
