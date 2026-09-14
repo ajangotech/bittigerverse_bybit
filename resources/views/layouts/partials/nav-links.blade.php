@@ -22,7 +22,7 @@
 
      <a class="nav-link {{ request()->is('/dashboard/switchmerchant*') ? 'active' : '' }}"
         href="/dashboard/switchmerchant">
-        <i class="bi bi-person-badge me-2"></i> Switch Merchant
+        <i class="bi bi-person-badge me-2"></i> Switch Ads
     </a>
 
 

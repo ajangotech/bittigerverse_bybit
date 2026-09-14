@@ -137,19 +137,15 @@
 
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        const API_URL = "{{ auth()->user()->api_url }}";
-        const API_KEY = "{{ auth()->user()->bybit_api_key }}";
-        const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
-
         const tokenSelect = document.getElementById("tokenSelect");
         const currencySelect = document.getElementById("currencySelect");
         const sortBySelect = document.getElementById("sortBySelect");
         const filterBtn = document.getElementById("filterBtn");
         const marketTableBody = document.getElementById("marketTableBody");
 
-        let selectedToken = "USDT";
-        let selectedCurrency = "USD";
-        let selectedSortBy = "price";
+        let selectedToken = tokenSelect.value;
+        let selectedCurrency = currencySelect.value;
+        let selectedSortBy = sortBySelect.value;
         let timer = null;
 
         function showToast(msg, type = "success") {
@@ -164,62 +160,59 @@
 
         async function fetchMarket() {
             try {
-                // Adjust the endpoint to `/api/ads` if you are hitting the Python backend directly, 
-                // or keep `/analyze-market` if Laravel is proxying it.
-                const res = await fetch(`${API_URL}/analyze-market`, { 
+                const res = await fetch("https://www.bybitglobal.com/x-api/fiat/otc/item/recommend/online", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
                     body: JSON.stringify({
-                        api_key: API_KEY,
-                        api_secret: API_SECRET,
                         tokenId: selectedToken,
                         currencyId: selectedCurrency,
-                        side: "0",
-                        minAmount: 0,
-                        marginPct: 4,
-                        limit: 30,
-                        sortBy: selectedSortBy
+                        side: "0", 
+                        page: "1",
+                        size: "30",
+                        amount: ""
                     })
                 });
 
                 const data = await res.json();
+                let items = data.result?.items || data.items || [];
 
-                // Make sure to access the correct array depending on your Python endpoint's JSON response format
-                const items = data.top_10_competitors || data; 
-
-                if (!items || (data.status === false && !data.top_10_competitors) || data.error) {
-                    showToast("Failed to load market", "error");
+                if (!Array.isArray(items) || items.length === 0) {
+                    showToast("Failed to load market data", "error");
+                    marketTableBody.innerHTML = `<tr><td colspan="3">No market data found for ${selectedToken}/${selectedCurrency}</td></tr>`;
                     return;
+                }
+
+                if (selectedSortBy === "price") {
+                    items.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                } else if (selectedSortBy === "completion_rate") {
+                    items.sort((a, b) => parseFloat(b.finishRate || 0) - parseFloat(a.finishRate || 0));
+                } else if (selectedSortBy === "orders") {
+                    items.sort((a, b) => parseInt(b.orderNum || 0) - parseInt(a.orderNum || 0));
                 }
 
                 renderTable(items);
 
             } catch (err) {
                 console.error(err);
-                showToast("Network error", "error");
+                showToast("Network or CORS error", "error");
             }
         }
 
         function renderTable(items) {
-            if (!items || items.length === 0) {
-                marketTableBody.innerHTML = `
-                    <tr>
-                        <td colspan="3">No market data found</td>
-                    </tr>`;
-                return;
-            }
-
             marketTableBody.innerHTML = "";
 
             items.forEach(item => {
                 marketTableBody.innerHTML += `
                     <tr>
-                        <td class="big-name">${item.nickName || item.nickname}</td>
+                        <td class="big-name">${item.nickName || item.nickname || 'Unknown'}</td>
                         <td class="big-price">
-                            ${parseFloat(item.price).toLocaleString()}
+                            ${parseFloat(item.price || 0).toLocaleString()} ${selectedCurrency}
                         </td>
                         <td class="small-qty">
-                            ${item.quantity || 'N/A'}
+                            ${item.lastQuantity || item.quantity || 'N/A'} ${selectedToken}
                         </td>
                     </tr>
                 `;
