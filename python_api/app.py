@@ -1,4 +1,10 @@
+import requests
 from bybit_p2p import P2P
+import requests
+import time
+import hmac
+import re
+import hashlib
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from functools import wraps
@@ -21,20 +27,22 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # =========================
 def require_api_keys(f):
     @wraps(f)
-    def wrapper(*args, **kwargs):
-        data = request.get_json()
+    def wrapper():
+        data = request.get_json(silent=True) or {}
 
-        if not data:
-            return jsonify({"error": "Request body is required"}), 400
+        if not isinstance(data, dict):
+            return jsonify({
+                "error": "Request body must be a JSON object"
+            }), 400
 
         if not data.get("api_key") or not data.get("api_secret"):
-            return jsonify({"error": "api_key and api_secret are required"}), 401
+            return jsonify({
+                "error": "api_key and api_secret are required"
+            }), 400
 
-        return f(data, *args, **kwargs)
+        return f(data)
 
     return wrapper
-
-
 # =========================
 # 🔧 HELPER FUNCTION
 # =========================
@@ -117,7 +125,156 @@ def update_ad(data):
         return jsonify({
             "error": str(e)
         }), 500
+
+
 # =========================
+# 📈 GET MAXIMUM AD PRICE
+# =========================
+@app.route("/api/ad-price-limit", methods=["POST"])
+@require_api_keys
+def ad_price_limit(data):
+    try:
+        api = get_api(data)
+
+        # Extract payment IDs
+        payment_ids = [
+            p.get("id")
+            for p in data.get("paymentTerms", [])
+            if isinstance(p, dict) and p.get("id")
+        ]
+
+        tp = data.get("tradingPreferenceSet", {})
+
+        trading_pref = {
+            "hasUnPostAd": int(tp.get("hasUnPostAd", 0)),
+            "isKyc": int(tp.get("isKyc", 0)),
+            "isEmail": int(tp.get("isEmail", 0)),
+            "isMobile": int(tp.get("isMobile", 0)),
+            "hasRegisterTime": int(tp.get("hasRegisterTime", 0)),
+            "registerTimeThreshold": int(
+                tp.get("registerTimeThreshold", 0)
+            ),
+            "orderFinishNumberDay30": int(
+                tp.get("orderFinishNumberDay30", 0)
+            ),
+            "hasOrderFinishNumberDay30": int(
+                tp.get("hasOrderFinishNumberDay30", 0)
+            ),
+            "hasCompleteRateDay30": int(
+                tp.get("hasCompleteRateDay30", 0)
+            ),
+            "hasNationalLimit": int(
+                tp.get("hasNationalLimit", 0)
+            ),
+            "completeRateDay30": tp.get(
+                "completeRateDay30", ""
+            ),
+            "nationalLimit": tp.get(
+                "nationalLimit", ""
+            )
+        }
+
+        try:
+
+            # This is ONLY used to ask Bybit for its
+            # allowed price range.
+            #
+            # The response is NOT used to update anything.
+            api.update_ad(
+                id=data.get("id"),
+                priceType=int(data.get("priceType", 0)),
+                premium=float(data.get("premium", 0)),
+                price=float(data.get("price")),
+                minAmount=float(data.get("minAmount")),
+                maxAmount=float(data.get("maxAmount")),
+                remark=data.get("remark", ""),
+                tradingPreferenceSet=trading_pref,
+                paymentIds=payment_ids,
+                actionType="MODIFY",
+                quantity=str(
+                    data.get("quantity")
+                    or data.get("lastQuantity")
+                    or "1"
+                ),
+                paymentPeriod=int(
+                    data.get("paymentPeriod", 15)
+                )
+            )
+
+            # If the requested price is accepted,
+            # simply return the requested price.
+            requested_price = str(data.get("price", "0"))
+
+            return jsonify({
+                "status": True,
+                "price_limit": False,
+                "price": requested_price
+            })
+
+        except Exception as e:
+
+            error_message = str(e)
+
+            # ---------------------------------
+            # EXTRACT BYBIT PRICE RANGE
+            # ---------------------------------
+            import re
+
+            pattern = (
+                r"lower than\s+([\d.]+)"
+                r"\s+or higher than\s+([\d.]+)"
+            )
+
+            match = re.search(
+                pattern,
+                error_message
+            )
+
+            if match:
+
+                minimum_price = match.group(1).rstrip(".")
+                maximum_price = match.group(2).rstrip(".")
+
+                requested_price = str(
+                    data.get("price", "0")
+                )
+
+                return jsonify({
+                    "status": True,
+                    "price_limit": True,
+
+                    "price": maximum_price,
+
+                    "minimum_price": minimum_price,
+                    "maximum_price": maximum_price,
+
+                    "requested_price": requested_price,
+
+                    "price_exceeded": (
+                        float(requested_price)
+                        > float(maximum_price)
+                    ),
+
+                    "price_below_minimum": (
+                        float(requested_price)
+                        < float(minimum_price)
+                    )
+                })
+
+            # ---------------------------------
+            # OTHER ERROR
+            # ---------------------------------
+            return jsonify({
+                "status": False,
+                "error": error_message
+            }), 500
+
+    except Exception as e:
+
+        return jsonify({
+            "status": False,
+            "error": str(e)
+        }), 500# =========================
 # 💳 PAYMENT TYPES
 # =========================
 @app.route("/api/payment-types", methods=["POST"])
@@ -132,7 +289,6 @@ def payment_types(data):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # =========================
 # 💰 BALANCE
@@ -263,6 +419,65 @@ def orders(data):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+# =========================
+# 💰 REFERENCE PRICE
+# =========================
+@app.route("/api/reference-price", methods=["POST"])
+@require_api_keys
+def reference_price(data):
+    try:
+        api_key = data.get("api_key")
+        api_secret = data.get("api_secret")
+        symbol = data.get("symbol", "BTC-USD")
+
+        timestamp = str(int(time.time() * 1000))
+        recv_window = "5000"
+
+        query_string = f"symbol={symbol}"
+
+        # Bybit GET signature
+        signature_payload = (
+            timestamp
+            + api_key
+            + recv_window
+            + query_string
+        )
+
+        signature = hmac.new(
+            api_secret.encode("utf-8"),
+            signature_payload.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+
+        url = (
+            "https://api.bybit.com/v5/fiat/reference-price"
+            f"?{query_string}"
+        )
+
+        headers = {
+            "X-BAPI-SIGN": signature,
+            "X-BAPI-API-KEY": api_key,
+            "X-BAPI-TIMESTAMP": timestamp,
+            "X-BAPI-RECV-WINDOW": recv_window,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
+
+        result = response.json()
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "status": False,
+            "error": str(e)
+        }), 500
 
 # =========================
 # ⏳ PENDING ORDERS

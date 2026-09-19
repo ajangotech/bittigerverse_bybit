@@ -90,9 +90,11 @@
 
                     <div class="d-grid gap-2">
 
-                        <a href="/dashboard/users" class="btn btn-light text-start">
-                            Manage Users
-                        </a>
+                        @if (auth()->user()->role == 'admin')
+                            <a href="/dashboard/users" class="btn btn-light text-start">
+                                Manage Users
+                            </a>
+                        @endif
 
                         <a href="/dashboard/ads" class="btn btn-light text-start">
                             Manage Ads
