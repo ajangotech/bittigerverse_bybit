@@ -275,6 +275,7 @@ def ad_price_limit(data):
             "status": False,
             "error": str(e)
         }), 500# =========================
+
 # 💳 PAYMENT TYPES
 # =========================
 @app.route("/api/payment-types", methods=["POST"])
