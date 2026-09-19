@@ -335,8 +335,8 @@
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
-                    id: "2056072756503375872",
-                    price: "106500",
+                    id: adId,
+                    price: "2",
                     priceType: 0,
                     premium: 0,
                     minAmount: "10.000",
