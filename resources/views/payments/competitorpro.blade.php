@@ -316,6 +316,16 @@
             const currentPrice = parseFloat(merchant.price);
             document.getElementById('merchantPrice').innerHTML = currentPrice;
 
+            // 🚀 --- SPECIAL TOPPER-BTC RULE --- 🚀
+            if (selectedMerchantName === 'TOPPER-BTC') {
+                document.getElementById('trackingStatus').innerHTML = '<span class="text-warning fw-bold">Syncing Exact TOPPER-BTC Price</span>';
+                if (currentPrice !== lastMerchantPrice) {
+                    lastMerchantPrice = currentPrice;
+                    await updateAdPrice(currentPrice);
+                }
+                return; // Bypass the ratchet restrictions below for TOPPER-BTC
+            }
+
             if (currentPrice <= lastMerchantPrice) {
                 document.getElementById('trackingStatus').innerHTML = `Maintaining High (${lastMerchantPrice})`;
                 return;
@@ -340,6 +350,18 @@
 
             const currentPrice = parseFloat(merchant.price);
             document.getElementById('merchantPrice').innerHTML = currentPrice;
+
+            // 🚀 --- SPECIAL TOPPER-BTC RULE (PLUS MODE) --- 🚀
+            if (selectedMerchantName === 'TOPPER-BTC') {
+                document.getElementById('trackingStatus').innerHTML = '<span class="text-warning fw-bold">Syncing Exact TOPPER-BTC Price (Plus)</span>';
+                if (currentPrice !== lastMerchantPrice || timeSinceLastUpdate >= plusTimerMs) {
+                    toast(`Syncing to TOPPER-BTC's price (${currentPrice})`, 'success');
+                    lastMerchantPrice = currentPrice;
+                    lastSuccessfulUpdateTime = Date.now();
+                    await updateAdPrice(currentPrice);
+                }
+                return; // Bypass the ratchet restrictions below for TOPPER-BTC
+            }
 
             // 2. Evaluate Timer Expiration (Re-edit / Re-sync to the SAME merchant)
             if (timeSinceLastUpdate >= plusTimerMs) {
