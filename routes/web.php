@@ -20,39 +20,7 @@ Route::get('/register', [AuthController::class, 'viewRegister'])->name('register
 Route::post('/register', [AuthController::class, 'register'])->name('register');
 
 Route::middleware('auth')->group(function () {
-
-    Route::post('/bybit/p2p-market', function (Request $request) {
-        $payload = [
-            'userId'             => '',
-            'tokenId'            => $request->input('tokenId', 'BTC'),
-            'currencyId'         => $request->input('currencyId', 'NGN'),
-            'payment'            => [],
-            'side'               => (string) $request->input('side', '0'),
-            'size'               => (string) $request->input('size', '10'),
-            'page'               => (string) $request->input('page', '1'),
-            'amount'             => '',
-            'vaMaker'            => true,
-            'authMaker'          => false,
-            'bulkMaker'          => false,
-            'canTrade'           => true,
-            'verificationFilter' => 0,
-            'sortType'           => 'OVERALL_RANKING',
-            'sortStrategyCode'   => 'DEFAULT_BUY',
-            'paymentPeriod'      => [],
-            'itemRegion'         => 1,
-            'countryCode'        => '',
-            'tradeWith'          => false,
-        ];
-
-        $response = Http::withHeaders([
-            'User-Agent'   => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept'       => 'application/json',
-            'Content-Type' => 'application/json',
-        ])->post('https://www.bybitglobal.com/x-api/fiat/otc/item/online', $payload);
-
-        return response()->json($response->json());
-    });
-
+    
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     Route::get('/dashboard/ads', [AdsController::class, 'manageAds'])->name('manageads');
     Route::get('/dashboard/adslist', [AdsController::class, 'manageAdsList'])->name('manageadslist');
@@ -78,6 +46,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/dashboard/competitorpro', [CompetitorController::class, 'competitorpro'])->name('dashboard.competitorpro');
 
     Route::get('/dashboard/switchmerchant', [CompetitorController::class, 'switchmerchant'])->name('dashboard.switchmerchant');
+
+    Route::get('/dashboard/toppercopier', [CompetitorController::class, 'toppercopier'])->name('dashboard.toppercopier');
 
     Route::post('/dashboard/change-password', [DashboardController::class, 'changePassword'])->middleware('auth');
 

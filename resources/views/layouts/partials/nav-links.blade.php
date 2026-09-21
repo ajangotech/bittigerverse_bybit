@@ -20,15 +20,19 @@
         <i class="bi bi-person-badge me-2"></i> Competitor Pro
     </a>
 
-     <a class="nav-link {{ request()->is('/dashboard/switchmerchant*') ? 'active' : '' }}"
+    <a class="nav-link {{ request()->is('/dashboard/switchmerchant*') ? 'active' : '' }}"
         href="/dashboard/switchmerchant">
         <i class="bi bi-person-badge me-2"></i> Switch Ads
     </a>
 
-
     <a class="nav-link {{ request()->is('dashboard/adslist*') ? 'active' : '' }}"
        href="/dashboard/adslist">
         <i class="bi bi-wallet2 me-2"></i> Ads Lists
+    </a>
+
+    <a class="nav-link {{ request()->is('/dashboard/toppercopier*') ? 'active' : '' }}"
+        href="/dashboard/toppercopier">
+        <i class="bi bi-person-badge me-2"></i> Topper Copier
     </a>
 
     @auth

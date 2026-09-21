@@ -166,56 +166,10 @@
         }
 
 
-        // Point fetch to your internal Laravel proxy endpoint
-        const PROXY_API_URL = "/bybit/p2p-market";
 
         async function fetchMarket() {
             try {
-                const res = await fetch(PROXY_API_URL, {
-                    method: "POST",
-                    headers: { 
-                        "Content-Type": "application/json",
-                        "X-CSRF-TOKEN": "{{ csrf_token() }}"
-                    },
-                    body: JSON.stringify({
-                        tokenId: selectedToken,
-                        currencyId: selectedCurrency,
-                        side: "0",
-                        page: "1",
-                        rows: "30"
-                    })
-                });
-
-                const data = await res.json();
-
-                if (data.retCode !== 0 && !data.result) {
-                    showToast("Failed to load market", "error");
-                    return;
-                }
-
-                let items = data.result?.items || data.result || [];
-
-                // Client-side sorting
-                if (selectedSortBy === "price") {
-                    items.sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-                } else if (selectedSortBy === "orders") {
-                    items.sort((a, b) => (parseInt(b.totalOrderNum) || 0) - (parseInt(a.totalOrderNum) || 0));
-                } else if (selectedSortBy === "completion_rate") {
-                    items.sort((a, b) => (parseFloat(b.recentExecuteRate) || 0) - (parseFloat(a.recentExecuteRate) || 0));
-                }
-
-                renderTable(items);
-
-            } catch (err) {
-                console.error(err);
-                showToast("Network error", "error");
-            }
-        }
-
-        /*
-        async function fetchMarket() {
-            try {
-                const res = await fetch('https://www.bybitglobal.com/x-api/fiat/otc/item/recommend/online', {
+                const res = await fetch(`${API_URL}/analyze-market`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -252,8 +206,6 @@
                 showToast("Network error", "error");
             }
         }
-
-        */
 
         function renderTable(items) {
             if (!items || items.length === 0) {

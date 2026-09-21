@@ -175,7 +175,7 @@
 
     <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebarOffcanvas">
         <div class="offcanvas-header">
-            <div class="brand-logo"><img src="/logo.png" alt="Logo"> MySystem</div>
+            <div class="brand-logo"><img src="/logo.png" alt="Logo"> Bittigerverse</div>
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
         </div>
         <div class="offcanvas-body">

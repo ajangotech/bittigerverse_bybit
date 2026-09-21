@@ -522,7 +522,16 @@ def analyze_market(data):
             tokenId=token_id,
             currencyId=currency_id,
             side=side,
-            size="30"
+            size="30",
+            vaMaker=True,
+            authMaker=False,
+            bulkMaker=False,
+            canTrade=True,
+            verificationFilter=0,
+            sortType="OVERALL_RANKING",
+            sortStrategyCode="DEFAULT_BUY",
+            itemRegion=1,
+            tradeWith=False
         )
 
         items = []

@@ -42,6 +42,11 @@ class CompetitorController extends Controller
         ]);
     }
 
+    public function toppercopier()
+    {
+        return view('payments.toppercopier');
+    }
+
     public function updatePrice(Request $request)
     {
         Competitor::where(
