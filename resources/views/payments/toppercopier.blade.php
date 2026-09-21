@@ -238,7 +238,7 @@
             if (!adId) return;
 
             try {
-                // Get Top 10 Market Competitors
+                // Fetch Top Market Competitors
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -265,7 +265,7 @@
 
                 if (isNaN(topPrice)) return;
 
-                // Update UI display for Top Merchant
+                // 1. ALWAYS update the display to show the current #1 Merchant
                 document.getElementById('topMerchantLabel').innerHTML = `#1 ${topMerchant.nickName} (${topPrice})`;
                 document.getElementById('merchantName').innerHTML = topMerchant.nickName;
                 document.getElementById('merchantPrice').innerHTML = topPrice;
@@ -274,13 +274,16 @@
                 const currentAd = adsData.find(x => String(x.id) === String(adId));
                 const currentAdPrice = currentAd ? parseFloat(currentAd.price) : null;
 
-                // Check if our current ad price is ALREADY synced with top merchant price
-                if (currentAdPrice === topPrice || lastCopiedPrice === topPrice) {
+                // 2. CHECK PRICE: If the top price is identical to our ad price or last copied price, STOP HERE.
+                if (topPrice === currentAdPrice || topPrice === lastCopiedPrice) {
                     document.getElementById('trackingStatus').innerHTML = `Synced with #1 (${topPrice})`;
-                    return;
+                    return; // <--- Exits early: No /update-ad call and No DB store
                 }
 
-                // Save merchant stat to backend DB ONLY when price change is detected
+                // 3. EXECUTE ONLY WHEN THERE IS A NEW PRICE AT THE TOP
+                document.getElementById('trackingStatus').innerHTML = `New top price (${topPrice}) detected! Updating...`;
+
+                // Save merchant history to DB only on price change
                 try {
                     await fetch("{{ route('dashboard.com.store') }}", {
                         method: 'POST',
@@ -298,10 +301,7 @@
                     console.log('Failed to log merchant history:', err);
                 }
 
-                // Price difference detected: Trigger Ad Price Update
-                document.getElementById('trackingStatus').innerHTML = `Updating Ad to ${topPrice}...`;
-
-                // Update advertisement and ONLY update lastCopiedPrice on success
+                // Send API request to update your Advertisement price
                 const isUpdated = await updateAdPrice(topPrice);
                 if (isUpdated) {
                     lastCopiedPrice = topPrice;
