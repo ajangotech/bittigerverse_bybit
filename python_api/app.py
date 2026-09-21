@@ -526,7 +526,7 @@ def analyze_market(data):
             vaMaker=True,
             authMaker=False,
             bulkMaker=False,
-            canTrade=True,
+            canTrade=False,
             verificationFilter=0,
             sortType="OVERALL_RANKING",
             sortStrategyCode="DEFAULT_BUY",
