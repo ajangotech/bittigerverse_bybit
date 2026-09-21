@@ -228,7 +228,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Fetch Top Merchant & Auto-Update Ad (1-Second Engine)
+        | Fetch Top Merchant & Auto-Update Ad (0.5-Second Engine)
         |--------------------------------------------------------------------------
         */
         async function syncTopperCopier() {
@@ -274,10 +274,10 @@
                 const currentAd = adsData.find(x => String(x.id) === String(adId));
                 const currentAdPrice = currentAd ? parseFloat(currentAd.price) : null;
 
-                // 2. CHECK PRICE: If the top price is identical to our ad price or last copied price, STOP HERE.
+                // 2. CHECK PRICE: If top price is identical to our ad price or last copied price, STOP HERE.
                 if (topPrice === currentAdPrice || topPrice === lastCopiedPrice) {
                     document.getElementById('trackingStatus').innerHTML = `Synced with #1 (${topPrice})`;
-                    return; // <--- Exits early: No /update-ad call and No DB store
+                    return;
                 }
 
                 // 3. EXECUTE ONLY WHEN THERE IS A NEW PRICE AT THE TOP
@@ -302,10 +302,7 @@
                 }
 
                 // Send API request to update your Advertisement price
-                const isUpdated = await updateAdPrice(topPrice);
-                if (isUpdated) {
-                    lastCopiedPrice = topPrice;
-                }
+                updateAdPrice(topPrice);
 
             } catch (e) {
                 console.error('Topper Copier sync error:', e);
@@ -315,67 +312,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Update Advertisement API Call
-        |--------------------------------------------------------------------------
-        */
-        async function updateAdPrice(newPrice) {
-            if (updatingAd) return false;
-            updatingAd = true;
-
-            const adId = document.getElementById('adId').value;
-            const ad = adsData.find(x => String(x.id) === String(adId));
-
-            if (!ad) {
-                updatingAd = false;
-                toast('No Ad selected.', 'error');
-                return false;
-            }
-
-            const payload = {
-                ...ad,
-                price: String(newPrice),
-                api_key: API_KEY,
-                api_secret: API_SECRET
-            };
-
-            try {
-                const res = await fetch(`${API_URL}/update-ad`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await res.json();
-
-                if (res.ok && result.status !== false && !result.error) {
-                    // Update local memory state
-                    ad.price = newPrice;
-                    document.getElementById('currentPrice').innerHTML = newPrice;
-                    document.getElementById('trackingStatus').innerHTML = `Successfully Copied (${newPrice})`;
-                    toast(`Ad price updated to Top Merchant price (${newPrice})`);
-                    updatingAd = false;
-                    return true;
-                } else {
-                    console.error('Backend Error:', result);
-                    toast(`Update failed: ${result.message || 'API Error'}`, 'error');
-                    document.getElementById('trackingStatus').innerHTML = 'Update Failed (Will Retry)';
-                    updatingAd = false;
-                    return false;
-                }
-
-            } catch (e) {
-                console.error('Network Error:', e);
-                toast('Network issue while updating ad.', 'error');
-                document.getElementById('trackingStatus').innerHTML = 'Network Error (Will Retry)';
-                updatingAd = false;
-                return false;
-            }
-        }
-        
-
-        /*
-        |--------------------------------------------------------------------------
-        | Update Advertisement API Call (With Auto Retry)
+        | Update Advertisement API Call (With Auto Retry - 0.5s)
         |--------------------------------------------------------------------------
         */
         async function updateAdPrice(newPrice) {
@@ -398,7 +335,7 @@
 
                 const payload = {
                     ...ad,
-                    price: priceToUpdate,
+                    price: String(priceToUpdate),
                     api_key: API_KEY,
                     api_secret: API_SECRET
                 };
@@ -412,8 +349,9 @@
 
                     const result = await res.json();
 
-                    if (res.ok && !result.error) {
+                    if (res.ok && result.status !== false && !result.error) {
                         ad.price = priceToUpdate;
+                        lastCopiedPrice = priceToUpdate;
                         document.getElementById('currentPrice').innerHTML = priceToUpdate;
                         document.getElementById('trackingStatus').innerHTML = `Successfully Copied (${priceToUpdate})`;
                         toast(`Ad price updated to Top Merchant price (${priceToUpdate})`);
@@ -421,14 +359,14 @@
                         if (targetAdPrice === priceToUpdate) break;
                     } else {
                         console.log('Backend Error:', result);
-                        toast('Retrying price update in 1s...', 'error');
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        toast('Retrying price update in 0.5s...', 'error');
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     }
 
                 } catch (e) {
                     console.error('Network Error:', e);
-                    toast('Network issue. Retrying in 1s...', 'error');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    toast('Network issue. Retrying in 0.5s...', 'error');
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
 
@@ -437,14 +375,14 @@
 
         /*
         |--------------------------------------------------------------------------
-        | 1-Second Topper Copier Loop
+        | 0.5-Second Topper Copier Loop (500ms)
         |--------------------------------------------------------------------------
         */
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
                 syncTopperCopier();
             }
-        }, 1000);
+        }, 500);
 
     });
 </script>
