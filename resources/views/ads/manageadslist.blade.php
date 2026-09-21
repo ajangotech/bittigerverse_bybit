@@ -166,6 +166,7 @@
         }
 
 
+        // Point fetch to your internal Laravel proxy endpoint
         const PROXY_API_URL = "/bybit/p2p-market";
 
         async function fetchMarket() {
@@ -181,18 +182,18 @@
                         currencyId: selectedCurrency,
                         side: "0",
                         page: "1",
-                        size: "30"
+                        rows: "30"
                     })
                 });
 
                 const data = await res.json();
 
-                if (data.retCode !== 0 || !data.result) {
-                    showToast(data.retMsg || "Failed to load market", "error");
+                if (data.retCode !== 0 && !data.result) {
+                    showToast("Failed to load market", "error");
                     return;
                 }
 
-                let items = data.result.items || [];
+                let items = data.result?.items || data.result || [];
 
                 // Client-side sorting
                 if (selectedSortBy === "price") {
