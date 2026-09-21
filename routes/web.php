@@ -33,7 +33,7 @@ Route::middleware('auth')->group(function () {
             'amount'             => '',
             'vaMaker'            => true,
             'authMaker'          => false,
-            'bulkMaker'          => true,
+            'bulkMaker'          => false,
             'canTrade'           => true,
             'verificationFilter' => 0,
             'sortType'           => 'OVERALL_RANKING',
