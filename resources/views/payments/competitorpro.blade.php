@@ -300,27 +300,26 @@
                 const data = await res.json();
 
                 if (data && data.price) {
-                    topperMerchant.price = parseFloat(data.price);
+                    topperMerchant.price = parseFloat(data.price);
 
-                    const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
-                    if (compIndex > -1) {
-                        competitors[compIndex].price = topperMerchant.price;
-                    }
+                    // Update the price internally in the competitors array if it exists
+                    const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
+                    if (compIndex > -1) {
+                        competitors[compIndex].price = topperMerchant.price;
+                    }
 
-                    const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
-                    if (topperOption) {
-                        topperOption.dataset.price = topperMerchant.price;
-                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
-                    }
+                    // Update UI Option directly without causing a full select re-render
+                    const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
+                    if (topperOption) {
+                        topperOption.dataset.price = topperMerchant.price;
+                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
+                    }
 
-                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
-                        if (plusModeToggle && plusModeToggle.checked) {
-                            await trackMerchantPlus();
-                        } else {
-                            await trackMerchantRatchet();
-                        }
-                    }
-                }
+                    // If actively tracking TOPPER-BTC, trigger the ratchet check
+                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
+                        trackMerchant();
+                    }
+                }
             } catch (e) {
                 console.log("Failed to fetch Topper limit:", e);
             }
