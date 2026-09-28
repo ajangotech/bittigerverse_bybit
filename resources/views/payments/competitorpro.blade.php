@@ -274,7 +274,7 @@
             if (!ad) return;
 
             try {
-                
+                /*
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
@@ -289,50 +289,292 @@
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
-                
-                /*
+                */
+
                 const payload = {
                     api_key: "2sFzCpV8cHiZmwTPkW",
                     api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
 
-                    id: "2096247541196816384",
+                    id: "2096259035641274368",
 
-                    price: "2",
+                    // Static price
+                    price: "999999999",
+
                     priceType: 0,
-                    premium: 0,
-
-                    minAmount: 2,
-                    maxAmount: 2,
-                    lastQuantity: 2,
-
+                    premium: "0",
+                    minAmount: "10.000",
+                    maxAmount: "100000.000",
+                    lastQuantity: "1",
                     paymentPeriod: 30,
 
                     paymentTerms: [
-                        "2870270",
-                        "2871006",
-                        "2871319",
-                        "3852078"
+                        {
+                            accountNo: "              6119914118",
+                            bankName: "",
+                            branchName: "",
+                            businessName: "",
+                            clabe: "",
+                            concept: "",
+                            debitCardNumber: "",
+                            firstName: "",
+                            id: "2870270",
+                            lastName: "",
+                            mobile: "",
+                            payMessage: "",
+
+                            paymentConfig: {
+                                paymentDialect: "payment_field_Opay",
+                                paymentName: "Opay",
+
+                                paymentTemplateItem: [
+                                    {
+                                        fieldName: "realName",
+                                        labelDialect: "input_field_realName",
+                                        placeholderDialect: "input_tip_realName"
+                                    },
+                                    {
+                                        fieldName: "accountNo",
+                                        labelDialect: "input_field_accountNo",
+                                        placeholderDialect: "input_tip_accountNo"
+                                    },
+                                    {
+                                        fieldName: "branchName",
+                                        labelDialect: "input_field_branchName",
+                                        placeholderDialect: "input_tip_branchName"
+                                    },
+                                    {
+                                        fieldName: "bankName",
+                                        labelDialect: "input_field_bankName",
+                                        placeholderDialect: "input_tip_bankName"
+                                    }
+                                ],
+
+                                paymentType: 520
+                            },
+
+                            paymentExt1: "",
+                            paymentExt2: "",
+                            paymentExt3: "",
+                            paymentExt4: "",
+                            paymentExt5: "",
+                            paymentExt6: "",
+
+                            paymentTemplateVersion: 1,
+                            paymentType: 520,
+                            qrcode: "",
+
+                            realName: "muhsin gambo ",
+                            realNameVerified: true,
+                            secondLastName: "",
+                            visible: 1
+                        },
+
+                        {
+                            accountNo: "0436384779",
+                            bankName: "",
+                            branchName: "",
+                            businessName: "",
+                            clabe: "",
+                            concept: "",
+                            debitCardNumber: "",
+                            firstName: "",
+                            id: "2871006",
+                            lastName: "",
+                            mobile: "",
+                            payMessage: "",
+
+                            paymentConfig: {
+                                paymentDialect:
+                                    "payment_field_GTB Bank (Guarantee Trust Bank)",
+
+                                paymentName:
+                                    "GTB Bank (Guarantee Trust Bank)",
+
+                                paymentTemplateItem: [
+                                    {
+                                        fieldName: "realName",
+                                        labelDialect: "input_field_realName",
+                                        placeholderDialect: "input_tip_realName"
+                                    },
+                                    {
+                                        fieldName: "accountNo",
+                                        labelDialect: "input_field_accountNo",
+                                        placeholderDialect: "input_tip_accountNo"
+                                    },
+                                    {
+                                        fieldName: "branchName",
+                                        labelDialect: "input_field_branchName",
+                                        placeholderDialect: "input_tip_branchName"
+                                    },
+                                    {
+                                        fieldName: "bankName",
+                                        labelDialect: "input_field_bankName",
+                                        placeholderDialect: "input_tip_bankName"
+                                    }
+                                ],
+
+                                paymentType: 516
+                            },
+
+                            paymentExt1: "",
+                            paymentExt2: "",
+                            paymentExt3: "",
+                            paymentExt4: "",
+                            paymentExt5: "",
+                            paymentExt6: "",
+
+                            paymentTemplateVersion: 1,
+                            paymentType: 516,
+                            qrcode: "",
+
+                            realName: "muhsin gambo",
+                            realNameVerified: true,
+                            secondLastName: "",
+                            visible: 1
+                        },
+
+                        {
+                            accountNo: "00",
+                            bankName: "",
+                            branchName: "",
+                            businessName: "",
+                            clabe: "",
+                            concept: "",
+                            debitCardNumber: "",
+                            firstName: "",
+                            id: "2871319",
+                            lastName: "",
+                            mobile: "",
+                            payMessage: "",
+
+                            paymentConfig: {
+                                paymentDialect: "payment_field_First Bank",
+                                paymentName: "First Bank",
+
+                                paymentTemplateItem: [
+                                    {
+                                        fieldName: "realName",
+                                        labelDialect: "input_field_realName",
+                                        placeholderDialect: "input_tip_realName"
+                                    },
+                                    {
+                                        fieldName: "accountNo",
+                                        labelDialect: "input_field_accountNo",
+                                        placeholderDialect: "input_tip_accountNo"
+                                    },
+                                    {
+                                        fieldName: "branchName",
+                                        labelDialect: "input_field_branchName",
+                                        placeholderDialect: "input_tip_branchName"
+                                    },
+                                    {
+                                        fieldName: "bankName",
+                                        labelDialect: "input_field_bankName",
+                                        placeholderDialect: "input_tip_bankName"
+                                    }
+                                ],
+
+                                paymentType: 515
+                            },
+
+                            paymentExt1: "",
+                            paymentExt2: "",
+                            paymentExt3: "",
+                            paymentExt4: "",
+                            paymentExt5: "",
+                            paymentExt6: "",
+
+                            paymentTemplateVersion: 1,
+                            paymentType: 515,
+                            qrcode: "",
+
+                            realName: "muhsin gambo",
+                            realNameVerified: true,
+                            secondLastName: "",
+                            visible: 1
+                        },
+
+                        {
+                            accountNo: "6359473806",
+                            bankName: "Moniepoint ",
+                            branchName: "Moniepoint ",
+                            businessName: "",
+                            clabe: "",
+                            concept: "",
+                            debitCardNumber: "",
+                            firstName: "",
+                            id: "3852078",
+                            lastName: "",
+                            mobile: "",
+                            payMessage: "",
+
+                            paymentConfig: {
+                                paymentDialect: "payment_field_14",
+                                paymentName: "Bank Transfer",
+
+                                paymentTemplateItem: [
+                                    {
+                                        fieldName: "realName",
+                                        labelDialect: "input_field_realName",
+                                        placeholderDialect: "input_tip_realName"
+                                    },
+                                    {
+                                        fieldName: "accountNo",
+                                        labelDialect: "input_field_accountNo",
+                                        placeholderDialect: "input_tip_accountNo"
+                                    },
+                                    {
+                                        fieldName: "branchName",
+                                        labelDialect: "input_field_branchName",
+                                        placeholderDialect: "input_tip_branchName"
+                                    },
+                                    {
+                                        fieldName: "bankName",
+                                        labelDialect: "input_field_bankName",
+                                        placeholderDialect: "input_tip_bankName"
+                                    }
+                                ],
+
+                                paymentType: 14
+                            },
+
+                            paymentExt1: "",
+                            paymentExt2: "",
+                            paymentExt3: "",
+                            paymentExt4: "",
+                            paymentExt5: "",
+                            paymentExt6: "",
+
+                            paymentTemplateVersion: 1,
+                            paymentType: 14,
+                            qrcode: "",
+
+                            realName: "MUHSIN Gambo",
+                            realNameVerified: true,
+                            secondLastName: "",
+                            visible: 1
+                        }
                     ],
 
                     tradingPreferenceSet: {
                         completeRateDay30: "0",
                         hasCompleteRateDay30: 0,
-                        hasNationalLimit: 0,
+                        hasNationalLimit: 1,
                         hasOrderFinishNumberDay30: 0,
                         hasRegisterTime: 0,
                         hasSingleUserOrderLimit: 0,
-                        hasUnPostAd: 0,
+                        hasUnPostAd: 1,
                         isEmail: 0,
-                        isKyc: 0,
+                        isKyc: 1,
                         isMobile: 0,
-                        //nationalLimit: "NGA",
+                        nationalLimit: "NGA",
                         orderFinishNumberDay30: 0,
                         registerTimeThreshold: 0,
                         singleUserOrderLimit: 0
                     }
                 };
                 
-                */
+                
                 const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
                     method: 'POST', 
                     headers: {
