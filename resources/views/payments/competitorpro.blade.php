@@ -288,18 +288,19 @@
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
-                const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
-                    method: 'POST', 
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify(payload)
-                });
+                
+                const res = await fetch(`${API_URL}/ad-price-limit`, {
+                    method: 'POST', 
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-                const data = await res.json();
+                const data = await res.json();
 
-                if (data && data.price) {
+                if (data && data.price) {
                     topperMerchant.price = parseFloat(data.price);
 
                     // Update the price internally in the competitors array if it exists
@@ -320,6 +321,8 @@
                         trackMerchant();
                     }
                 }
+
+                
             } catch (e) {
                 console.log("Failed to fetch Topper limit:", e);
             }
