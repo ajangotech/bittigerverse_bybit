@@ -382,7 +382,7 @@
             if (selectedToken && selectedCurrency) {
                 syncTopperCopier();
             }
-        }, 500);
+        }, 200);
 
     });
 </script>
