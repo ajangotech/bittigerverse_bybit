@@ -281,8 +281,8 @@
                     price: "2", // Static price
                     priceType: ad.priceType !== undefined ? ad.priceType : 0,
                     premium: ad.premium !== undefined ? ad.premium : 0,
-                    minAmount: 30,//ad.minAmount,
-                    maxAmount: 50 //ad.maxAmount,
+                    minAmount: "30", //ad.minAmount,
+                    maxAmount: "50", //ad.maxAmount,
                     lastQuantity: ad.lastQuantity,
                     paymentPeriod: ad.paymentPeriod,
                     paymentTerms: ad.paymentTerms,
