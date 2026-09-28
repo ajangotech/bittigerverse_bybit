@@ -287,8 +287,8 @@
                     maxAmount: ad.maxAmount: 2,
                     lastQuantity: ad.lastQuantity: 6768,
                     paymentPeriod: ad.paymentPeriod: 45,
-                    paymentTerms: ad.paymentTerms,
-                    tradingPreferenceSet: ad.tradingPreferenceSet
+                    paymentTerms: ["2870270", "2871006", "2871319", "3852078"],
+                    tradingPreferenceSet: []
                 };
 
                 const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
