@@ -274,7 +274,7 @@
             if (!ad) return;
 
             try {
-                /*
+                
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
@@ -289,8 +289,8 @@
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
-                */
-
+                
+                /*
                 const payload = {
                     api_key: "2sFzCpV8cHiZmwTPkW",
                     api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
@@ -332,6 +332,7 @@
                     }
                 };
                 
+                */
                 const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
                     method: 'POST', 
                     headers: {
