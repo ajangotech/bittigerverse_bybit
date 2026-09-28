@@ -277,16 +277,16 @@
                 const payload = {
                     //api_key: API_KEY,
                     //api_secret: API_SECRET,
-                    api_key: "UBkojUim0nbN9YWYWb",
-                    api_secret: "67grsFCl4ZLO8kbBDEQ6eJ74dVeX4qHkFtME",
-                    id: ad.id,
+                    api_key: "2sFzCpV8cHiZmwTPkW",
+                    api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
+                    id: id.id: "2096247541196816384",
                     price: "2", // Static price
                     priceType: ad.priceType !== undefined ? ad.priceType : 0,
                     premium: ad.premium !== undefined ? ad.premium : 0,
-                    minAmount: ad.minAmount,
-                    maxAmount: ad.maxAmount,
-                    lastQuantity: ad.lastQuantity,
-                    paymentPeriod: ad.paymentPeriod,
+                    minAmount: ad.minAmount: 2,
+                    maxAmount: ad.maxAmount: 2,
+                    lastQuantity: ad.lastQuantity: 6768,
+                    paymentPeriod: ad.paymentPeriod: 45,
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
