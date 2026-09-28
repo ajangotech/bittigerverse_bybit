@@ -274,87 +274,94 @@
             if (!ad) return;
 
             try {
-                const payload = {
-                    // api_key: API_KEY,
-                    // api_secret: API_SECRET,
+    const payload = {
+        api_key: "2sFzCpV8cHiZmwTPkW",
+        api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
 
-                    api_key: "2sFzCpV8cHiZmwTPkW",
-                    api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
+        id: "2096247541196816384",
 
-                    id: id.id || "2096247541196816384",
+        price: "2",
+        priceType: 0,
+        premium: 0,
 
-                    price: "2", // Static price
+        minAmount: 2,
+        maxAmount: 2,
+        lastQuantity: 6768,
 
-                    priceType: ad.priceType !== undefined ? ad.priceType : 0,
-                    premium: ad.premium !== undefined ? ad.premium : 0,
+        paymentPeriod: 45,
 
-                    minAmount: ad.minAmount !== undefined ? ad.minAmount : 2,
-                    maxAmount: ad.maxAmount !== undefined ? ad.maxAmount : 2,
-                    lastQuantity: ad.lastQuantity !== undefined ? ad.lastQuantity : 6768,
+        paymentTerms: [
+            "2870270",
+            "2871006",
+            "2871319",
+            "3852078"
+        ],
 
-                    paymentPeriod: ad.paymentPeriod !== undefined ? ad.paymentPeriod : 45,
+        tradingPreferenceSet: {
+            completeRateDay30: "0",
+            hasCompleteRateDay30: 0,
+            hasNationalLimit: 1,
+            hasOrderFinishNumberDay30: 0,
+            hasRegisterTime: 0,
+            hasSingleUserOrderLimit: 0,
+            hasUnPostAd: 1,
+            isEmail: 0,
+            isKyc: 1,
+            isMobile: 0,
+            nationalLimit: "NGA",
+            orderFinishNumberDay30: 0,
+            registerTimeThreshold: 0,
+            singleUserOrderLimit: 0
+        }
+    };
 
-                    paymentTerms: [
-                        "2870270",
-                        "2871006",
-                        "2871319",
-                        "3852078"
-                    ],
+    const res = await fetch(
+        "https://06-bittiger.ajango.com.ng/api/ad-price-limit",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": "{{ csrf_token() }}"
+            },
+            body: JSON.stringify(payload)
+        }
+    );
 
-                    tradingPreferenceSet: {
-                        completeRateDay30: "0",
-                        hasCompleteRateDay30: 0,
-                        hasNationalLimit: 1,
-                        hasOrderFinishNumberDay30: 0,
-                        hasRegisterTime: 0,
-                        hasSingleUserOrderLimit: 0,
-                        hasUnPostAd: 1,
-                        isEmail: 0,
-                        isKyc: 1,
-                        isMobile: 0,
-                        nationalLimit: "NGA",
-                        orderFinishNumberDay30: 0,
-                        registerTimeThreshold: 0,
-                        singleUserOrderLimit: 0
-                    }
-                };
+    const data = await res.json();
 
-                const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
-                    method: 'POST', 
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify(payload)
-                });
+    if (data && data.price) {
+        topperMerchant.price = parseFloat(data.price);
 
-                const data = await res.json();
+        const compIndex = competitors.findIndex(
+            x => x.id === "TOPPER-BTC"
+        );
 
-                if (data && data.price) {
-                    topperMerchant.price = parseFloat(data.price);
+        if (compIndex > -1) {
+            competitors[compIndex].price = topperMerchant.price;
+        }
 
-                    const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
-                    if (compIndex > -1) {
-                        competitors[compIndex].price = topperMerchant.price;
-                    }
+        const topperOption = document.querySelector(
+            'option[value="TOPPER-BTC"]'
+        );
 
-                    const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
-                    if (topperOption) {
-                        topperOption.dataset.price = topperMerchant.price;
-                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
-                    }
+        if (topperOption) {
+            topperOption.dataset.price = topperMerchant.price;
+            topperOption.innerHTML =
+                `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
+        }
 
-                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
-                        if (plusModeToggle && plusModeToggle.checked) {
-                            await trackMerchantPlus();
-                        } else {
-                            await trackMerchantRatchet();
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log("Failed to fetch Topper limit:", e);
+        if (tracking && selectedMerchantId === "TOPPER-BTC") {
+            if (plusModeToggle && plusModeToggle.checked) {
+                await trackMerchantPlus();
+            } else {
+                await trackMerchantRatchet();
             }
+        }
+    }
+
+} catch (e) {
+    console.log("Failed to fetch Topper limit:", e);
+}
         }
 
         /*
