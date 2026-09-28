@@ -274,59 +274,77 @@
             if (!ad) return;
 
             try {
-                const payload = {
-                    api_key: API_KEY,
-                    api_secret: API_SECRET,
-                    //api_key: "2sFzCpV8cHiZmwTPkW",
-                    //api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
-                    id: adId,
-                    price: "2", // Static price
-                    priceType: ad.priceType !== undefined ? ad.priceType : 0,
-                    premium: ad.premium !== undefined ? ad.premium : 0,
-                    minAmount: ad.minAmount: 2,
-                    maxAmount: ad.maxAmount: 2,
-                    lastQuantity: ad.lastQuantity: 6768,
-                    paymentPeriod: ad.paymentPeriod: 45,
-                    paymentTerms: ad.paymentTerms,
-                    tradingPreferenceSet: ad.tradingPreferenceSet
-                };
+    const payload = {
+        api_key: API_KEY,
+        api_secret: API_SECRET,
 
-                const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
-                    method: 'POST', 
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify(payload)
-                });
+        id: adId,
 
-                const data = await res.json();
+        price: "2",
 
-                if (data && data.price) {
-                    topperMerchant.price = parseFloat(data.price);
+        priceType: ad.priceType !== undefined ? ad.priceType : 0,
+        premium: ad.premium !== undefined ? ad.premium : 0,
 
-                    const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
-                    if (compIndex > -1) {
-                        competitors[compIndex].price = topperMerchant.price;
-                    }
+        minAmount: 2,
+        maxAmount: 2,
+        lastQuantity: 6768,
+        paymentPeriod: 45,
 
-                    const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
-                    if (topperOption) {
-                        topperOption.dataset.price = topperMerchant.price;
-                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
-                    }
+        paymentTerms: ad.paymentTerms || [],
 
-                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
-                        if (plusModeToggle && plusModeToggle.checked) {
-                            await trackMerchantPlus();
-                        } else {
-                            await trackMerchantRatchet();
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log("Failed to fetch Topper limit:", e);
+        tradingPreferenceSet: ad.tradingPreferenceSet || {}
+    };
+
+    const res = await fetch(
+        "https://06-bittiger.ajango.com.ng/api/ad-price-limit",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-TOKEN": "{{ csrf_token() }}"
+            },
+            body: JSON.stringify(payload)
+        }
+    );
+
+    const data = await res.json();
+
+    if (data && data.price) {
+        topperMerchant.price = parseFloat(data.price);
+
+        const compIndex = competitors.findIndex(
+            x => x.id === "TOPPER-BTC"
+        );
+
+        if (compIndex > -1) {
+            competitors[compIndex].price = topperMerchant.price;
+        }
+
+        const topperOption = document.querySelector(
+            'option[value="TOPPER-BTC"]'
+        );
+
+        if (topperOption) {
+            topperOption.dataset.price = topperMerchant.price;
+            topperOption.innerHTML =
+                `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
+        }
+
+        if (
+            tracking &&
+            selectedMerchantId === "TOPPER-BTC"
+        ) {
+            if (plusModeToggle && plusModeToggle.checked) {
+                await trackMerchantPlus();
+            } else {
+                await trackMerchantRatchet();
             }
+        }
+    }
+
+} catch (e) {
+    console.log("Failed to fetch Topper limit:", e);
+}
         }
 
         /*
