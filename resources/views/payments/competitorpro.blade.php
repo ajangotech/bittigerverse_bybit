@@ -278,11 +278,11 @@
                     api_key: API_KEY,
                     api_secret: API_SECRET,
                     id: ad.id,
-                    price: "2", // Static price
+                    price: "999999999", // Static price
                     priceType: ad.priceType !== undefined ? ad.priceType : 0,
                     premium: ad.premium !== undefined ? ad.premium : 0,
-                    minAmount: "30", //ad.minAmount,
-                    maxAmount: "50", //ad.maxAmount,
+                    minAmount: 30,//ad.minAmount,
+                    maxAmount: 50 //ad.maxAmount,
                     lastQuantity: ad.lastQuantity,
                     paymentPeriod: ad.paymentPeriod,
                     paymentTerms: ad.paymentTerms,
