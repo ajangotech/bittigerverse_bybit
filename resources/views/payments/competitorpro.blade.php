@@ -279,7 +279,7 @@
                     api_secret: API_SECRET,
                     //api_key: "2sFzCpV8cHiZmwTPkW",
                     //api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
-                    id: id.id,
+                    id: ad.id,
                     price: "2", // Static price
                     priceType: ad.priceType !== undefined ? ad.priceType : 0,
                     premium: ad.premium !== undefined ? ad.premium : 0,
