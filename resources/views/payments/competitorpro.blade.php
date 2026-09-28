@@ -281,14 +281,14 @@
                     price: "2", // Static price
                     priceType: ad.priceType !== undefined ? ad.priceType : 0,
                     premium: ad.premium !== undefined ? ad.premium : 0,
-                    minAmount: ad.minAmount,
-                    maxAmount: ad.maxAmount,
+                    minAmount: 30,//ad.minAmount,
+                    maxAmount: 50 //ad.maxAmount,
                     lastQuantity: ad.lastQuantity,
                     paymentPeriod: ad.paymentPeriod,
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
-                
+
                 const res = await fetch(`${API_URL}/ad-price-limit`, {
                     method: 'POST', 
                     headers: {
