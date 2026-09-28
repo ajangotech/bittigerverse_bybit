@@ -275,36 +275,19 @@
 
             try {
                 const payload = {
-                    api_key: API_KEY,
-                    api_secret: API_SECRET,
-                    id: adId,
-                    price: "106500",
-                    priceType: 0,
-                    premium: 0,
-                    minAmount: "10.000",
-                    maxAmount: "100000.000",
-                    lastQuantity: "1.99985746",
-                    paymentPeriod: 30,
-                    paymentTerms: [
-                        { "id": "16736255" },
-                        { "id": "16736274" },
-                        { "id": "5074256" }
-                    ],
-                    tradingPreferenceSet: {
-                        hasUnPostAd: 0,
-                        isKyc: 0,
-                        isEmail: 0,
-                        isMobile: 0,
-                        hasRegisterTime: 0,
-                        registerTimeThreshold: 0,
-                        orderFinishNumberDay30: 0,
-                        hasOrderFinishNumberDay30: 0,
-                        hasCompleteRateDay30: 0,
-                        hasNationalLimit: 0,
-                        completeRateDay30: "",
-                        nationalLimit: ""
-                    }
-                };
+                    api_key: API_KEY,
+                    api_secret: API_SECRET,
+                    id: ad.id,
+                    price: "2", // Static price
+                    priceType: ad.priceType !== undefined ? ad.priceType : 0,
+                    premium: ad.premium !== undefined ? ad.premium : 0,
+                    minAmount: ad.minAmount,
+                    maxAmount: ad.maxAmount,
+                    lastQuantity: ad.lastQuantity,
+                    paymentPeriod: ad.paymentPeriod,
+                    paymentTerms: ad.paymentTerms,
+                    tradingPreferenceSet: ad.tradingPreferenceSet
+                };
                 const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
                     method: 'POST', 
                     headers: {
