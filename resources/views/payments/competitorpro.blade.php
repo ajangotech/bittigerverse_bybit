@@ -275,8 +275,10 @@
 
             try {
                 const payload = {
-                    api_key: API_KEY,
-                    api_secret: API_SECRET,
+                    //api_key: API_KEY,
+                    //api_secret: API_SECRET,
+                    api_key: "UBkojUim0nbN9YWYWb",
+                    api_secret: "67grsFCl4ZLO8kbBDEQ6eJ74dVeX4qHkFtME",
                     id: ad.id,
                     price: "2", // Static price
                     priceType: ad.priceType !== undefined ? ad.priceType : 0,
