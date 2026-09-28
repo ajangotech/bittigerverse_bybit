@@ -285,10 +285,10 @@
         priceType: ad.priceType !== undefined ? ad.priceType : 0,
         premium: ad.premium !== undefined ? ad.premium : 0,
 
-        minAmount: 2,
-        maxAmount: 2,
-        lastQuantity: 6768,
-        paymentPeriod: 45,
+        minAmount: 10,
+        maxAmount: 20,
+        lastQuantity: 1,
+        paymentPeriod: 30,
 
         paymentTerms: ad.paymentTerms || [],
 
