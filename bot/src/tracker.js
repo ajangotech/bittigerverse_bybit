@@ -273,12 +273,9 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
       );
     }
   } else {
-    // Just update last_merchant_price in DB for tracking accuracy
-    if (currentPrice !== lastMerchantPrice) {
-      await updateSession(session.id, {
-        last_merchant_price: currentPrice,
-      });
-    }
+    // Price didn't go up — do NOT update last_merchant_price.
+    // Keeping the old higher price ensures we only react to prices
+    // that exceed our last actual ad update price.
   }
 }
 
