@@ -18,7 +18,7 @@ load_dotenv()
 app = Flask(__name__)
 application = app
 
-#ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://127.0.0.1:8080")
+#ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://127.0.0.1:8090")
 #CORS(app, origins=[ALLOWED_ORIGINS])
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -807,7 +807,7 @@ def notify_success(order):
 # 🚀 RUN APP
 # =========================
 def run_flask():
-    app.run(host="127.0.0.1", port=8080, debug=False)
+    app.run(host="127.0.0.1", port=8090, debug=False)
 
 
 if __name__ == "__main__":
