@@ -3,56 +3,62 @@
  * Mirrors the Blade view's logic: ratchet mode and plus mode.
  */
 
-const { supabase } = require('./supabase');
+const crypto = require('crypto');
+const { pool } = require('./db');
 const { fetchCompetitors, fetchTopperPrice, updateAdPrice, sleep } = require('./bybit');
+
+function uuid() {
+  return crypto.randomUUID();
+}
 
 /**
  * Get a user's credentials from the database.
  */
 async function getUser(telegramId) {
-  const { data, error } = await supabase
-    .from('bot_users')
-    .select('*')
-    .eq('telegram_id', telegramId)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const [rows] = await pool.query(
+    'SELECT * FROM bot_users WHERE telegram_id = ?',
+    [telegramId]
+  );
+  return rows[0] || null;
 }
 
 /**
  * Get all active tracking sessions (tracking = true).
  */
 async function getActiveSessions() {
-  const { data, error } = await supabase
-    .from('tracking_sessions')
-    .select('*')
-    .eq('tracking', true);
-  if (error) throw error;
-  return data || [];
+  const [rows] = await pool.query(
+    'SELECT * FROM tracking_sessions WHERE tracking = 1'
+  );
+  return rows;
 }
 
 /**
  * Get a single session by id.
  */
 async function getSession(sessionId) {
-  const { data, error } = await supabase
-    .from('tracking_sessions')
-    .select('*')
-    .eq('id', sessionId)
-    .maybeSingle();
-  if (error) throw error;
-  return data;
+  const [rows] = await pool.query(
+    'SELECT * FROM tracking_sessions WHERE id = ?',
+    [sessionId]
+  );
+  return rows[0] || null;
 }
 
 /**
  * Update a session row in the database.
  */
 async function updateSession(sessionId, updates) {
-  const { error } = await supabase
-    .from('tracking_sessions')
-    .update({ ...updates, updated_at: new Date().toISOString() })
-    .eq('id', sessionId);
-  if (error) throw error;
+  const fields = [];
+  const values = [];
+  for (const [key, value] of Object.entries(updates)) {
+    fields.push(`${key} = ?`);
+    values.push(value);
+  }
+  fields.push('updated_at = NOW()');
+  values.push(sessionId);
+  await pool.query(
+    `UPDATE tracking_sessions SET ${fields.join(', ')} WHERE id = ?`,
+    values
+  );
 }
 
 /**
@@ -60,45 +66,53 @@ async function updateSession(sessionId, updates) {
  */
 async function logCompetitor(session, merchant, price, adPriceSet, action) {
   try {
-    await supabase.from('competitor_logs').insert({
-      telegram_id: session.telegram_id,
-      session_id: session.id,
-      merchant_id: merchant?.id || session.selected_merchant_id,
-      merchant_name: merchant?.nickName || session.selected_merchant_name,
-      merchant_price: price,
-      ad_price_set: adPriceSet,
-      action,
-    });
+    await pool.query(
+      'INSERT INTO competitor_logs (id, telegram_id, session_id, merchant_id, merchant_name, merchant_price, ad_price_set, action) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [uuid(), session.telegram_id, session.id, merchant?.id || session.selected_merchant_id, merchant?.nickName || session.selected_merchant_name, price, adPriceSet, action]
+    );
   } catch (e) {
     // logging is best-effort
   }
 }
 
 /**
+ * Parse JSON fields in a session row that MySQL returns as strings.
+ */
+function normalizeSession(session) {
+  if (!session) return session;
+  const s = { ...session };
+  if (typeof s.payment_terms === 'string') {
+    try { s.payment_terms = JSON.parse(s.payment_terms); } catch (_) {}
+  }
+  if (typeof s.trading_preference_set === 'string') {
+    try { s.trading_preference_set = JSON.parse(s.trading_preference_set); } catch (_) {}
+  }
+  if (typeof s.ad_payload_cache === 'string') {
+    try { s.ad_payload_cache = JSON.parse(s.ad_payload_cache); } catch (_) {}
+  }
+  if (typeof s.tracking === 'number') s.tracking = !!s.tracking;
+  if (typeof s.plus_mode === 'number') s.plus_mode = !!s.plus_mode;
+  if (typeof s.copier_mode === 'number') s.copier_mode = !!s.copier_mode;
+  return s;
+}
+
+/**
  * Run one tick of the tracking loop for a single session.
- * Fetches competitors + topper price, then decides whether to update the ad.
- *
- * @param {object} session - full session row
- * @param {object} bot - telegram bot instance for notifications
- * @param {object} competitorsCache - mutable cache { [sessionId]: array }
  */
 async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice) {
   const user = await getUser(session.telegram_id);
   if (!user || !user.bybit_api_key || !user.bybit_api_secret) return;
 
-  const apiUrl = user.bybit_api_url || 'https://api2.bybit.com';
+  const apiUrl = user.bybit_api_url || 'https://02-bittiger.ajango.com.ng/api';
   const apiKey = user.bybit_api_key;
   const apiSecret = user.bybit_api_secret;
 
-  // Re-fetch session to get latest state (could have been stopped by user)
   const fresh = await getSession(session.id);
   if (!fresh || !fresh.tracking) return;
-  session = fresh;
+  session = normalizeSession(fresh);
 
-  // 1. Use cached topper price (updated every 1 second by the topper poll loop)
   const topperPrice = cachedTopperPrice;
 
-  // 2. Fetch competitors (resilient to temporary API failures)
   let status = false;
   let competitors = [];
   try {
@@ -112,7 +126,6 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
     status = result.status;
     competitors = result.competitors;
   } catch (e) {
-    // API temporarily unavailable — skip this tick, retry next cycle
     competitorsCache[session.id] = competitorsCache[session.id] || [];
     return;
   }
@@ -122,7 +135,6 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
     return;
   }
 
-  // Inject topper at top
   let allCompetitors = [...competitors];
   if (topperPrice !== null) {
     allCompetitors.unshift({
@@ -134,22 +146,17 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
 
   competitorsCache[session.id] = allCompetitors;
 
-  // 3. Find the selected merchant
   let merchant;
   if (session.copier_mode) {
-    // Copier mode: always track whoever is #1 in the market right now
-    // (skip TOPPER-BTC injected entry — only real market competitors)
     const realCompetitors = allCompetitors.filter(
       (x) => String(x.id) !== 'TOPPER-BTC'
     );
     merchant = realCompetitors[0] || null;
 
     if (!merchant) {
-      // No competitors available this tick — skip, retry next cycle
       return;
     }
 
-    // Update session to reflect the current #1 merchant (it may change)
     if (String(merchant.id) !== String(session.selected_merchant_id)) {
       await updateSession(session.id, {
         selected_merchant_id: String(merchant.id),
@@ -185,14 +192,12 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
     : Date.now();
   const timeSinceLastUpdate = Date.now() - lastUpdateTime;
 
-  // 4. Decide action
   let shouldUpdate = false;
   let newPrice = currentPrice;
   let action = '';
   let statusText = '';
 
   if (session.copier_mode) {
-    // Copier: only update when the #1 market price goes UP (never down)
     if (currentPrice > lastMerchantPrice) {
       statusText = `Copier: #1 ${merchant.nickName} price UP to ${currentPrice}`;
       shouldUpdate = true;
@@ -232,7 +237,6 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
         statusText = `Maintaining (${lastMerchantPrice})`;
       }
     } else {
-      // Ratchet: only update when price goes UP (never down)
       if (currentPrice === lastMerchantPrice) {
         statusText = `Matching Market (${lastMerchantPrice})`;
       } else if (currentPrice > lastMerchantPrice) {
@@ -245,7 +249,6 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
     }
   }
 
-  // 5. Update ad price if needed
   if (shouldUpdate) {
     const ad = session.ad_payload_cache;
     if (!ad) return;
@@ -272,25 +275,17 @@ async function runTrackingTick(session, bot, competitorsCache, cachedTopperPrice
         { parse_mode: 'Markdown' }
       );
     }
-  } else {
-    // Price didn't go up — do NOT update last_merchant_price.
-    // Keeping the old higher price ensures we only react to prices
-    // that exceed our last actual ad update price.
   }
 }
 
 /**
  * Start the global tracking loop. Runs every 3 seconds, processing all active sessions.
- * Also runs a topper-price-only poll every 1 second (for faster limit detection).
- *
- * @param {object} bot - telegram bot instance
- * @returns {void}
+ * Also runs a topper-price-only poll every 1 second.
  */
 function startTrackingLoop(bot) {
   const competitorsCache = {};
   let cachedTopperPrice = null;
 
-  // Topper price poll every 1 second (matches the web app's 1-second topper check)
   setInterval(async () => {
     try {
       const price = await fetchTopperPrice();
@@ -300,7 +295,6 @@ function startTrackingLoop(bot) {
     }
   }, 1000);
 
-  // Main loop every 3 seconds (matches the Blade view's market poll)
   setInterval(async () => {
     try {
       const sessions = await getActiveSessions();
@@ -325,4 +319,5 @@ module.exports = {
   logCompetitor,
   runTrackingTick,
   startTrackingLoop,
+  uuid,
 };

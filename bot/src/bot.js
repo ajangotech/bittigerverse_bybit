@@ -1,29 +1,16 @@
 /*
  * Telegram bot — command handlers and inline keyboard callbacks.
- *
- * Commands:
- *  /start       — register + welcome + show menu
- *  /menu        — show the main command keyboard
- *  /setkeys     — set Bybit API key/secret (prompt-based)
- *  /seturl      — set custom API proxy URL
- *  /myads       — list your Bybit ads + TOPPER-BTC (inline buttons)
- *  /track       — start tracking flow (pick ad -> pick merchant)
- *  /stop        — stop active tracking
- *  /status      — show current tracking status
- *  /plus        — toggle plus mode for a specific tracking session
- *  /timer       — set re-edit timer for a specific tracking session
- *  /help        — show all commands
- *  /cancel      — cancel current multi-step flow
  */
 
 const TelegramBot = require('node-telegram-bot-api');
-const { supabase } = require('./supabase');
+const { pool } = require('./db');
 const { fetchAds, fetchCompetitors, updateAdPrice, fetchTopperPrice } = require('./bybit');
 const {
   getUser,
   getSession,
   updateSession,
   startTrackingLoop,
+  uuid,
 } = require('./tracker');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -34,10 +21,8 @@ if (!token) {
 
 const bot = new TelegramBot(token, { polling: true });
 
-// In-memory state for multi-step flows (keyed by telegram_id)
 const userState = {};
 
-// Timer options (same as the Blade view)
 const TIMER_OPTIONS = [
   { label: '1.0 min', ms: 60000 },
   { label: '1.5 min', ms: 90000 },
@@ -54,11 +39,6 @@ const TIMER_OPTIONS = [
   { label: '7.0 min', ms: 420000 },
 ];
 
-/*
-|--------------------------------------------------------------------------
-| Main menu keyboard — persistent reply keyboard
-|--------------------------------------------------------------------------
-*/
 const mainMenuKeyboard = {
   keyboard: [
     [{ text: '📋 My Ads' }, { text: '🎯 Track' }],
@@ -79,13 +59,12 @@ const mainMenuKeyboard = {
 async function ensureUser(telegramId) {
   let user = await getUser(telegramId);
   if (!user) {
-    const { data, error } = await supabase
-      .from('bot_users')
-      .insert({ telegram_id: telegramId })
-      .select()
-      .maybeSingle();
-    if (error) throw error;
-    user = data;
+    const id = uuid();
+    await pool.query(
+      'INSERT INTO bot_users (id, telegram_id) VALUES (?, ?)',
+      [id, telegramId]
+    );
+    user = await getUser(telegramId);
   }
   return user;
 }
@@ -117,7 +96,7 @@ bot.onText(/\/start/, async (msg) => {
 
 /*
 |--------------------------------------------------------------------------
-| /menu — show the main keyboard
+| /menu
 |--------------------------------------------------------------------------
 */
 bot.onText(/\/menu/, (msg) => {
@@ -155,7 +134,7 @@ bot.onText(/\/help/, (msg) => {
 
 /*
 |--------------------------------------------------------------------------
-| /setkeys — prompt-based flow
+| /setkeys
 |--------------------------------------------------------------------------
 */
 bot.onText(/\/setkeys/, (msg) => {
@@ -178,7 +157,7 @@ bot.onText(/\/seturl/, (msg) => {
   userState[msg.from.id] = { step: 'awaiting_api_url' };
   bot.sendMessage(
     chatId,
-    'Please send your *API proxy URL* (e.g. https://api2.bybit.com).\n\nSend /cancel to abort.',
+    'Please send your *API proxy URL* (e.g. https://02-bittiger.ajango.com.ng/api).\n\nSend /cancel to abort.',
     { parse_mode: 'Markdown' }
   );
 });
@@ -203,7 +182,6 @@ bot.on('message', async (msg) => {
   const userId = msg.from.id;
   const text = msg.text ? msg.text.trim() : '';
 
-  // Route menu button presses to their command equivalents
   const menuRoutes = {
     '📋 My Ads': '/myads',
     '🎯 Track': '/track',
@@ -218,8 +196,6 @@ bot.on('message', async (msg) => {
   };
 
   if (menuRoutes[text]) {
-    msg.text = menuRoutes[text];
-    // Re-emit as a fake command by calling the handler directly
     const cmd = menuRoutes[text];
     if (cmd === '/myads') return handleMyAds(msg);
     if (cmd === '/track') return handleTrack(msg);
@@ -259,14 +235,12 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // Ignore command messages (handled by onText handlers)
   if (text.startsWith('/')) return;
 
   const state = userState[userId];
   if (!state) return;
 
   try {
-    // --- API Key input ---
     if (state.step === 'awaiting_api_key') {
       state.apiKey = text;
       state.step = 'awaiting_api_secret';
@@ -276,18 +250,12 @@ bot.on('message', async (msg) => {
       return;
     }
 
-    // --- API Secret input ---
     if (state.step === 'awaiting_api_secret') {
       const apiSecret = text;
-      const { error } = await supabase
-        .from('bot_users')
-        .update({
-          bybit_api_key: state.apiKey,
-          bybit_api_secret: apiSecret,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('telegram_id', userId);
-      if (error) throw error;
+      await pool.query(
+        'UPDATE bot_users SET bybit_api_key = ?, bybit_api_secret = ?, updated_at = NOW() WHERE telegram_id = ?',
+        [state.apiKey, apiSecret, userId]
+      );
 
       delete userState[userId];
       bot.sendMessage(chatId, '✅ Bybit API credentials saved successfully! Tap "My Ads" to see your ads.', {
@@ -296,17 +264,12 @@ bot.on('message', async (msg) => {
       return;
     }
 
-    // --- API URL input ---
     if (state.step === 'awaiting_api_url') {
       const url = text.replace(/\/$/, '');
-      const { error } = await supabase
-        .from('bot_users')
-        .update({
-          bybit_api_url: url,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('telegram_id', userId);
-      if (error) throw error;
+      await pool.query(
+        'UPDATE bot_users SET bybit_api_url = ?, updated_at = NOW() WHERE telegram_id = ?',
+        [url, userId]
+      );
 
       delete userState[userId];
       bot.sendMessage(chatId, `✅ API URL set to: ${url}`, { reply_markup: mainMenuKeyboard });
@@ -320,7 +283,7 @@ bot.on('message', async (msg) => {
 
 /*
 |--------------------------------------------------------------------------
-| /myads — list ads + TOPPER-BTC as inline buttons
+| /myads
 |--------------------------------------------------------------------------
 */
 async function handleMyAds(msg) {
@@ -345,7 +308,6 @@ async function handleMyAds(msg) {
       return;
     }
 
-    // Fetch TOPPER-BTC price (static payload — same price for all pairs)
     const uniquePairs = [...new Set(ads.map((a) => `${a.tokenId}/${a.currencyId}`))];
     const topperPrice = await fetchTopperPrice();
     const topperPrices = {};
@@ -355,7 +317,6 @@ async function handleMyAds(msg) {
       }
     }
 
-    // Build keyboard: TOPPER-BTC entries first (per pair), then user's ads
     const keyboard = [];
 
     for (const pair of uniquePairs) {
@@ -397,7 +358,7 @@ bot.onText(/\/myads/, handleMyAds);
 
 /*
 |--------------------------------------------------------------------------
-| /track — start tracking flow
+| /track
 |--------------------------------------------------------------------------
 */
 async function handleTrack(msg) {
@@ -447,7 +408,7 @@ bot.onText(/\/track/, handleTrack);
 
 /*
 |--------------------------------------------------------------------------
-| /copier — auto-copy the #1 market merchant (upward only)
+| /copier
 |--------------------------------------------------------------------------
 */
 async function handleCopier(msg) {
@@ -500,7 +461,7 @@ bot.onText(/\/copier/, handleCopier);
 
 /*
 |--------------------------------------------------------------------------
-| /stop — stop active tracking
+| /stop
 |--------------------------------------------------------------------------
 */
 async function handleStop(msg) {
@@ -508,11 +469,10 @@ async function handleStop(msg) {
   const userId = msg.from.id;
 
   try {
-    const { data: sessions } = await supabase
-      .from('tracking_sessions')
-      .select('*')
-      .eq('telegram_id', userId)
-      .eq('tracking', true);
+    const [sessions] = await pool.query(
+      'SELECT * FROM tracking_sessions WHERE telegram_id = ? AND tracking = 1',
+      [userId]
+    );
 
     if (!sessions || sessions.length === 0) {
       bot.sendMessage(chatId, 'ℹ️ No active tracking sessions.', { reply_markup: mainMenuKeyboard });
@@ -535,7 +495,7 @@ bot.onText(/\/stop/, handleStop);
 
 /*
 |--------------------------------------------------------------------------
-| /status — show current tracking status
+| /status
 |--------------------------------------------------------------------------
 */
 async function handleStatus(msg) {
@@ -543,12 +503,10 @@ async function handleStatus(msg) {
   const userId = msg.from.id;
 
   try {
-    const { data: sessions } = await supabase
-      .from('tracking_sessions')
-      .select('*')
-      .eq('telegram_id', userId)
-      .order('updated_at', { ascending: false })
-      .limit(5);
+    const [sessions] = await pool.query(
+      'SELECT * FROM tracking_sessions WHERE telegram_id = ? ORDER BY updated_at DESC LIMIT 5',
+      [userId]
+    );
 
     if (!sessions || sessions.length === 0) {
       bot.sendMessage(chatId, 'ℹ️ No tracking sessions found. Tap "Track" to start.', {
@@ -559,14 +517,17 @@ async function handleStatus(msg) {
 
     let text = '*📊 Tracking Status:*\n\n';
     for (const s of sessions) {
-      const status = s.tracking ? '🟢 Active' : '🔴 Stopped';
-      const mode = s.copier_mode ? ' 🤖 Copier' : (s.plus_mode ? ' (Plus)' : '');
+      const tracking = !!s.tracking;
+      const plusMode = !!s.plus_mode;
+      const copierMode = !!s.copier_mode;
+      const status = tracking ? '🟢 Active' : '🔴 Stopped';
+      const mode = copierMode ? ' 🤖 Copier' : (plusMode ? ' (Plus)' : '');
       text += `${status}${mode}\n`;
       text += `Ad: ${s.token_id}/${s.currency_id}\n`;
       text += `Ad Price: ${s.current_ad_price || '---'}\n`;
       text += `Merchant: ${s.selected_merchant_name || '---'}\n`;
       text += `Merchant Price: ${s.last_merchant_price || '---'}\n`;
-      if (s.plus_mode && s.tracking) {
+      if (plusMode && tracking) {
         const lastUpdate = s.last_update_time ? new Date(s.last_update_time).getTime() : 0;
         const elapsed = Date.now() - lastUpdate;
         const remaining = Math.max(0, s.plus_timer_ms - elapsed);
@@ -587,7 +548,7 @@ bot.onText(/\/status/, handleStatus);
 
 /*
 |--------------------------------------------------------------------------
-| /plus — toggle plus mode for a specific active session
+| /plus
 |--------------------------------------------------------------------------
 */
 async function handlePlus(msg) {
@@ -595,12 +556,10 @@ async function handlePlus(msg) {
   const userId = msg.from.id;
 
   try {
-    const { data: sessions } = await supabase
-      .from('tracking_sessions')
-      .select('*')
-      .eq('telegram_id', userId)
-      .order('updated_at', { ascending: false })
-      .limit(10);
+    const [sessions] = await pool.query(
+      'SELECT * FROM tracking_sessions WHERE telegram_id = ? ORDER BY updated_at DESC LIMIT 10',
+      [userId]
+    );
 
     const activeSessions = (sessions || []).filter((s) => s.tracking);
 
@@ -611,7 +570,6 @@ async function handlePlus(msg) {
       return;
     }
 
-    // If only one active session, toggle it directly
     if (activeSessions.length === 1) {
       const session = activeSessions[0];
       const newPlus = !session.plus_mode;
@@ -630,7 +588,6 @@ async function handlePlus(msg) {
       return;
     }
 
-    // Multiple sessions — let user pick which one
     const keyboard = activeSessions.map((s) => [
       {
         text: `${s.plus_mode ? '🚀' : '⚪'} ${s.token_id}/${s.currency_id} | ${s.selected_merchant_name}`,
@@ -651,7 +608,7 @@ bot.onText(/\/plus/, handlePlus);
 
 /*
 |--------------------------------------------------------------------------
-| /timer — set re-edit timer for a specific active session
+| /timer
 |--------------------------------------------------------------------------
 */
 async function handleTimer(msg) {
@@ -659,13 +616,10 @@ async function handleTimer(msg) {
   const userId = msg.from.id;
 
   try {
-    const { data: sessions } = await supabase
-      .from('tracking_sessions')
-      .select('*')
-      .eq('telegram_id', userId)
-      .eq('tracking', true)
-      .order('updated_at', { ascending: false })
-      .limit(10);
+    const [sessions] = await pool.query(
+      'SELECT * FROM tracking_sessions WHERE telegram_id = ? AND tracking = 1 ORDER BY updated_at DESC LIMIT 10',
+      [userId]
+    );
 
     if (!sessions || sessions.length === 0) {
       bot.sendMessage(chatId, 'ℹ️ No active tracking sessions. Start tracking first with /track.', {
@@ -674,7 +628,6 @@ async function handleTimer(msg) {
       return;
     }
 
-    // If only one active session, show timer options directly
     if (sessions.length === 1) {
       const session = sessions[0];
       const keyboard = TIMER_OPTIONS.map((t) => [
@@ -692,7 +645,6 @@ async function handleTimer(msg) {
       return;
     }
 
-    // Multiple sessions — let user pick which one to set timer for
     const keyboard = sessions.map((s) => [
       {
         text: `⏱️ ${s.token_id}/${s.currency_id} | ${s.selected_merchant_name} (current: ${s.plus_timer_ms / 60000} min)`,
@@ -722,20 +674,16 @@ bot.on('callback_query', async (callbackQuery) => {
   const userId = callbackQuery.from.id;
   const data = callbackQuery.data;
 
-  // Answer the callback immediately so Telegram's 5-second timeout doesn't fire.
-  // Use a helper that swallows "query is too old" errors.
   const answer = (text) => {
     bot.answerCallbackQuery(callbackQuery.id, text ? { text } : undefined).catch(() => {});
   };
 
   try {
-    // --- Back to menu ---
     if (data === 'backtomenu') {
       answer();
       return;
     }
 
-    // --- TOPPER-BTC info ---
     if (data.startsWith('topperinfo:')) {
       const pair = data.split(':')[1];
       const state = userState[userId];
@@ -750,7 +698,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Ad info view ---
     if (data.startsWith('adinfo:')) {
       const adId = data.split(':')[1];
       const state = userState[userId];
@@ -778,7 +725,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Track ad: selected an ad, now show merchants (including TOPPER-BTC) ---
     if (data.startsWith('trackad:')) {
       const adId = data.split(':')[1];
       const state = userState[userId];
@@ -808,7 +754,6 @@ bot.on('callback_query', async (callbackQuery) => {
         console.error('fetchCompetitors error:', e.message);
       }
 
-      // Fetch topper price
       const topperPrice = await fetchTopperPrice();
 
       if (topperPrice !== null) {
@@ -827,54 +772,39 @@ bot.on('callback_query', async (callbackQuery) => {
         return;
       }
 
-      // BTC/NGN: auto-select the top market competitor (skip merchant selection)
       if (ad.tokenId === 'BTC' && ad.currencyId === 'NGN') {
-        // Use the first real competitor (not TOPPER-BTC)
         const topMerchant = allCompetitors.find((m) => m.id !== 'TOPPER-BTC') || allCompetitors[0];
         const referencePrice = parseFloat(topMerchant.price);
 
-        // Delete any existing active sessions for this user+ad
-        await supabase
-          .from('tracking_sessions')
-          .delete()
-          .eq('telegram_id', userId)
-          .eq('tracking', true)
-          .eq('ad_id', String(ad.id));
+        await pool.query(
+          'DELETE FROM tracking_sessions WHERE telegram_id = ? AND tracking = 1 AND ad_id = ?',
+          [userId, String(ad.id)]
+        );
 
-        const { data: session, error } = await supabase
-          .from('tracking_sessions')
-          .insert({
-            telegram_id: userId,
-            ad_id: String(ad.id),
-            token_id: ad.tokenId,
-            currency_id: ad.currencyId,
-            current_ad_price: ad.price,
-            min_amount: ad.minAmount,
-            max_amount: ad.maxAmount,
-            ad_status: ad.status,
-            price_type: ad.priceType !== undefined ? ad.priceType : 0,
-            premium: ad.premium !== undefined ? String(ad.premium) : '0',
-            last_quantity: ad.lastQuantity ? String(ad.lastQuantity) : '1',
-            payment_period: ad.paymentPeriod || 30,
-            payment_terms: ad.paymentTerms || null,
-            trading_preference_set: ad.tradingPreferenceSet || null,
-            selected_merchant_id: String(topMerchant.id),
-            selected_merchant_name: topMerchant.nickName,
-            reference_price: referencePrice,
-            last_merchant_price: referencePrice,
-            tracking: true,
-            copier_mode: true,
-            plus_mode: false,
-            plus_timer_ms: 180000,
-            last_update_time: new Date().toISOString(),
-            ad_payload_cache: ad,
-          })
-          .select()
-          .maybeSingle();
+        const sessionId = uuid();
+        await pool.query(
+          `INSERT INTO tracking_sessions
+            (id, telegram_id, ad_id, token_id, currency_id, current_ad_price, min_amount, max_amount,
+             ad_status, price_type, premium, last_quantity, payment_period, payment_terms,
+             trading_preference_set, selected_merchant_id, selected_merchant_name, reference_price,
+             last_merchant_price, tracking, copier_mode, plus_mode, plus_timer_ms, last_update_time, ad_payload_cache)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 0, ?, ?, ?)`,
+          [
+            sessionId, userId, String(ad.id), ad.tokenId, ad.currencyId, ad.price,
+            ad.minAmount, ad.maxAmount, ad.status,
+            ad.priceType !== undefined ? ad.priceType : 0,
+            ad.premium !== undefined ? String(ad.premium) : '0',
+            ad.lastQuantity ? String(ad.lastQuantity) : '1',
+            ad.paymentPeriod || 30,
+            JSON.stringify(ad.paymentTerms || null),
+            JSON.stringify(ad.tradingPreferenceSet || null),
+            String(topMerchant.id), topMerchant.nickName, referencePrice, referencePrice,
+            180000, new Date().toISOString(), JSON.stringify(ad),
+          ]
+        );
 
-        if (error) throw error;
+        const session = await getSession(sessionId);
 
-        // Immediately update ad to the top competitor's price
         const result = await updateAdPrice(
           user.bybit_api_url,
           user.bybit_api_key,
@@ -907,14 +837,12 @@ bot.on('callback_query', async (callbackQuery) => {
           }
         );
 
-        // Also send the main menu keyboard
         bot.sendMessage(chatId, 'Main menu:', { reply_markup: mainMenuKeyboard });
 
         delete userState[userId];
         return;
       }
 
-      // Other pairs: show merchant selection as before
       state.selectedAd = ad;
       state.competitorsCache = allCompetitors;
 
@@ -937,7 +865,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Track merchant: start tracking ---
     if (data.startsWith('trackmerchant:')) {
       const idx = parseInt(data.split(':')[1]);
       const state = userState[userId];
@@ -954,48 +881,35 @@ bot.on('callback_query', async (callbackQuery) => {
       const user = await ensureUser(userId);
       const referencePrice = parseFloat(merchant.price);
 
-      // Delete any existing active sessions for this user+ad
-      await supabase
-        .from('tracking_sessions')
-        .delete()
-        .eq('telegram_id', userId)
-        .eq('tracking', true)
-        .eq('ad_id', String(ad.id));
+      await pool.query(
+        'DELETE FROM tracking_sessions WHERE telegram_id = ? AND tracking = 1 AND ad_id = ?',
+        [userId, String(ad.id)]
+      );
 
-      // Create new tracking session (per-ad plus_mode and timer)
-      const { data: session, error } = await supabase
-        .from('tracking_sessions')
-        .insert({
-          telegram_id: userId,
-          ad_id: String(ad.id),
-          token_id: ad.tokenId,
-          currency_id: ad.currencyId,
-          current_ad_price: ad.price,
-          min_amount: ad.minAmount,
-          max_amount: ad.maxAmount,
-          ad_status: ad.status,
-          price_type: ad.priceType !== undefined ? ad.priceType : 0,
-          premium: ad.premium !== undefined ? String(ad.premium) : '0',
-          last_quantity: ad.lastQuantity ? String(ad.lastQuantity) : '1',
-          payment_period: ad.paymentPeriod || 30,
-          payment_terms: ad.paymentTerms || null,
-          trading_preference_set: ad.tradingPreferenceSet || null,
-          selected_merchant_id: String(merchant.id),
-          selected_merchant_name: merchant.nickName,
-          reference_price: referencePrice,
-          last_merchant_price: referencePrice,
-          tracking: true,
-          plus_mode: false,
-          plus_timer_ms: 180000,
-          last_update_time: new Date().toISOString(),
-          ad_payload_cache: ad,
-        })
-        .select()
-        .maybeSingle();
+      const sessionId = uuid();
+      await pool.query(
+        `INSERT INTO tracking_sessions
+          (id, telegram_id, ad_id, token_id, currency_id, current_ad_price, min_amount, max_amount,
+           ad_status, price_type, premium, last_quantity, payment_period, payment_terms,
+           trading_preference_set, selected_merchant_id, selected_merchant_name, reference_price,
+           last_merchant_price, tracking, plus_mode, plus_timer_ms, last_update_time, ad_payload_cache)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?, ?)`,
+        [
+          sessionId, userId, String(ad.id), ad.tokenId, ad.currencyId, ad.price,
+          ad.minAmount, ad.maxAmount, ad.status,
+          ad.priceType !== undefined ? ad.priceType : 0,
+          ad.premium !== undefined ? String(ad.premium) : '0',
+          ad.lastQuantity ? String(ad.lastQuantity) : '1',
+          ad.paymentPeriod || 30,
+          JSON.stringify(ad.paymentTerms || null),
+          JSON.stringify(ad.tradingPreferenceSet || null),
+          String(merchant.id), merchant.nickName, referencePrice, referencePrice,
+          180000, new Date().toISOString(), JSON.stringify(ad),
+        ]
+      );
 
-      if (error) throw error;
+      const session = await getSession(sessionId);
 
-      // Immediately update ad to merchant's price
       const result = await updateAdPrice(
         user.bybit_api_url,
         user.bybit_api_key,
@@ -1029,7 +943,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Copier mode: select an ad, auto-track #1 market merchant ---
     if (data.startsWith('copierad:')) {
       const adId = data.split(':')[1];
       const state = userState[userId];
@@ -1044,7 +957,6 @@ bot.on('callback_query', async (callbackQuery) => {
 
       const user = await ensureUser(userId);
 
-      // Fetch current competitors to get the #1 merchant right now
       let topMerchant = null;
       try {
         const { status, competitors } = await fetchCompetitors(
@@ -1063,49 +975,37 @@ bot.on('callback_query', async (callbackQuery) => {
 
       const referencePrice = topMerchant ? parseFloat(topMerchant.price) : parseFloat(ad.price);
 
-      // Delete any existing active sessions for this user+ad
-      await supabase
-        .from('tracking_sessions')
-        .delete()
-        .eq('telegram_id', userId)
-        .eq('tracking', true)
-        .eq('ad_id', String(ad.id));
+      await pool.query(
+        'DELETE FROM tracking_sessions WHERE telegram_id = ? AND tracking = 1 AND ad_id = ?',
+        [userId, String(ad.id)]
+      );
 
-      // Create new copier tracking session
-      const { data: session, error } = await supabase
-        .from('tracking_sessions')
-        .insert({
-          telegram_id: userId,
-          ad_id: String(ad.id),
-          token_id: ad.tokenId,
-          currency_id: ad.currencyId,
-          current_ad_price: ad.price,
-          min_amount: ad.minAmount,
-          max_amount: ad.maxAmount,
-          ad_status: ad.status,
-          price_type: ad.priceType !== undefined ? ad.priceType : 0,
-          premium: ad.premium !== undefined ? String(ad.premium) : '0',
-          last_quantity: ad.lastQuantity ? String(ad.lastQuantity) : '1',
-          payment_period: ad.paymentPeriod || 30,
-          payment_terms: ad.paymentTerms || null,
-          trading_preference_set: ad.tradingPreferenceSet || null,
-          selected_merchant_id: topMerchant ? String(topMerchant.id) : 'AUTO',
-          selected_merchant_name: topMerchant ? topMerchant.nickName : 'Auto-Detecting #1',
-          reference_price: referencePrice,
-          last_merchant_price: referencePrice,
-          tracking: true,
-          copier_mode: true,
-          plus_mode: false,
-          plus_timer_ms: 180000,
-          last_update_time: new Date().toISOString(),
-          ad_payload_cache: ad,
-        })
-        .select()
-        .maybeSingle();
+      const sessionId = uuid();
+      await pool.query(
+        `INSERT INTO tracking_sessions
+          (id, telegram_id, ad_id, token_id, currency_id, current_ad_price, min_amount, max_amount,
+           ad_status, price_type, premium, last_quantity, payment_period, payment_terms,
+           trading_preference_set, selected_merchant_id, selected_merchant_name, reference_price,
+           last_merchant_price, tracking, copier_mode, plus_mode, plus_timer_ms, last_update_time, ad_payload_cache)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, 0, ?, ?, ?)`,
+        [
+          sessionId, userId, String(ad.id), ad.tokenId, ad.currencyId, ad.price,
+          ad.minAmount, ad.maxAmount, ad.status,
+          ad.priceType !== undefined ? ad.priceType : 0,
+          ad.premium !== undefined ? String(ad.premium) : '0',
+          ad.lastQuantity ? String(ad.lastQuantity) : '1',
+          ad.paymentPeriod || 30,
+          JSON.stringify(ad.paymentTerms || null),
+          JSON.stringify(ad.tradingPreferenceSet || null),
+          topMerchant ? String(topMerchant.id) : 'AUTO',
+          topMerchant ? topMerchant.nickName : 'Auto-Detecting #1',
+          referencePrice, referencePrice,
+          180000, new Date().toISOString(), JSON.stringify(ad),
+        ]
+      );
 
-      if (error) throw error;
+      const session = await getSession(sessionId);
 
-      // Immediately update ad to the #1 merchant's price
       if (topMerchant) {
         const result = await updateAdPrice(
           user.bybit_api_url,
@@ -1139,7 +1039,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Plus mode: toggle for a specific session ---
     if (data.startsWith('plussession:')) {
       const sessionId = data.split(':')[1];
       answer();
@@ -1165,7 +1064,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Timer: pick a session first (when multiple active) ---
     if (data.startsWith('picksession_timer:')) {
       const sessionId = data.split(':')[1];
       answer();
@@ -1190,7 +1088,6 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
 
-    // --- Set timer for a specific session ---
     if (data.startsWith('settimer:')) {
       const parts = data.split(':');
       const sessionId = parts[1];

@@ -1,7 +1,7 @@
 require('dotenv').config();
 
 const http = require('http');
-const { supabase } = require('./src/supabase');
+const { pool } = require('./src/db');
 const { getActiveSessions } = require('./src/tracker');
 
 const PORT = process.env.PORT || 3000;
