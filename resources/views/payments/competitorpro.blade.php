@@ -673,11 +673,14 @@
             competitors.forEach((merchant, index) => {
                 const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : `#${index}`;
 
+                /*
+
                 merchantSelect.innerHTML += `
                     <option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>
                         ${displayPrefix} | ${merchant.nickName} | ${merchant.price}
                     </option>
                 `;
+                */
             });
         }
 
@@ -908,7 +911,7 @@
         // 2. Market Poll Loop every 3 seconds
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
-                //fetchCompetitors();
+                fetchCompetitors();
             }
         }, 3000);
 
