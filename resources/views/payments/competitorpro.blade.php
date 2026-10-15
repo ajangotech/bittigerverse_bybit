@@ -624,7 +624,6 @@
             if (!selectedToken || !selectedCurrency) return;
 
             try {
-                /*
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -637,9 +636,6 @@
                         marginPct: 4
                     })
                 });
-                */
-
-                res = {};
 
                 const data = await res.json();
                 if (!data.status) return;
@@ -907,12 +903,15 @@
         // 1. Fetch TOPPER Limit Price every 1 second
         setInterval(fetchTopperPrice, 1000);
 
+        /*
         // 2. Market Poll Loop every 3 seconds
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
                 fetchCompetitors();
             }
         }, 3000);
+
+        */
 
         // 3. Visual Countdown Timer UI Loop every 1 second
         setInterval(() => {
