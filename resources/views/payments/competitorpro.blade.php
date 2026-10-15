@@ -292,10 +292,7 @@
                 
                 const res = await fetch(`${API_URL}/ad-price-limit`, {
                     method: 'POST', 
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
 
