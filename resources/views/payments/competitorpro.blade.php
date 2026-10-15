@@ -622,7 +622,7 @@
         */
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
-
+            /*
             try {
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: 'POST',
@@ -657,6 +657,7 @@
             } catch (e) {
                 console.log(e);
             }
+            */
         }
 
         /*
@@ -671,13 +672,11 @@
             competitors.forEach((merchant, index) => {
                 const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : `#${index}`;
 
-                /*
                 merchantSelect.innerHTML += `
                     <option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>
                         ${displayPrefix} | ${merchant.nickName} | ${merchant.price}
                     </option>
                 `;
-                */
             });
         }
 
