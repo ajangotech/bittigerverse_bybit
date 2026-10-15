@@ -639,6 +639,8 @@
                 });
                 */
 
+                res = [];
+
                 const data = await res.json();
                 if (!data.status) return;
 
