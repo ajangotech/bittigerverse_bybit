@@ -256,7 +256,7 @@
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
 
             fetchTopperPrice();
-            await fetchCompetitors();
+            //await fetchCompetitors();
         });
 
         /*
