@@ -290,7 +290,6 @@
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
                 
-
                 /*
 
                 const payload = {
