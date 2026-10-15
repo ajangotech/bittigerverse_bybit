@@ -256,7 +256,7 @@
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
 
             fetchTopperPrice();
-            //await fetchCompetitors();
+            await fetchCompetitors();
         });
 
         /*
@@ -274,7 +274,7 @@
             if (!ad) return;
 
             try {
-                
+                /*
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
@@ -621,6 +621,8 @@
         | Fetch Competitors
         |--------------------------------------------------------------------------
         
+        */
+
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
 
@@ -646,7 +648,7 @@
                 // Inject TOPPER-BTC at the top of competitors list
                 competitors.unshift({ ...topperMerchant });
 
-                renderCompetitors();
+                //renderCompetitors();
 
                 if (tracking && selectedMerchantId) {
                     if (plusModeToggle && plusModeToggle.checked) {
@@ -659,8 +661,6 @@
                 console.log(e);
             }
         }
-
-        */
 
         /*
         |--------------------------------------------------------------------------
