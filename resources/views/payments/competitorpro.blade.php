@@ -622,8 +622,9 @@
         */
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
-            /*
+            
             try {
+                /*
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -636,8 +637,14 @@
                         marginPct: 4
                     })
                 });
+                */
 
-                const data = await res.json();
+                const data = {
+                    status: true,
+                    top_10_competitors: []
+                };
+
+                //const data = await res.json();
                 if (!data.status) return;
 
                 competitors = data.top_10_competitors || [];
@@ -657,7 +664,6 @@
             } catch (e) {
                 console.log(e);
             }
-            */
         }
 
         /*
