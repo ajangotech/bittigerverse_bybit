@@ -145,14 +145,15 @@
         const countdownEl = document.getElementById('plusCountdownText');
 
         let adsData = [];
-        let competitors = [];
 
-        // Special TOPPER-BTC Merchant Object
+        // Only TOPPER-BTC is available as a merchant
         let topperMerchant = {
             id: 'TOPPER-BTC',
             nickName: 'TOPPER-BTC',
             price: 'Loading...'
         };
+
+        let competitors = [{ ...topperMerchant }];
 
         let lastSuccessfulUpdateTime = Date.now(); 
 
@@ -221,8 +222,7 @@
         /*
         |--------------------------------------------------------------------------
         | Advertisement Selected
-        |--------------------------------------------------------------------------
-        */
+        |--------------------------------------------------------------------------*/
         adsSelect.addEventListener('change', async function () {
             const ad = adsData.find(x => String(x.id) === String(this.value));
 
@@ -253,17 +253,14 @@
             document.getElementById('merchantPrice').innerHTML = '---';
             document.getElementById('trackingStatus').innerHTML = 'Stopped';
 
-            merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
-
             fetchTopperPrice();
-            await fetchCompetitors();
+            renderCompetitors();
         });
 
         /*
         |--------------------------------------------------------------------------
         | Fetch TOPPER-BTC Price (1-Second API Check)
-        |--------------------------------------------------------------------------
-        */
+        |--------------------------------------------------------------------------*/
         async function fetchTopperPrice() {
             if (!selectedToken || !selectedCurrency) return;
 
@@ -289,325 +286,39 @@
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
-                
-                /*
-                const payload = {
-                    api_key: "2sFzCpV8cHiZmwTPkW",
-                    api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
 
-                    id: "2096259035641274368",
-
-                    // Static price
-                    price: "999999999",
-
-                    priceType: 0,
-                    premium: "0",
-                    minAmount: "10.000",
-                    maxAmount: "100000.000",
-                    lastQuantity: "1",
-                    paymentPeriod: 30,
-
-                    paymentTerms: [
-                        {
-                            accountNo: "              6119914118",
-                            bankName: "",
-                            branchName: "",
-                            businessName: "",
-                            clabe: "",
-                            concept: "",
-                            debitCardNumber: "",
-                            firstName: "",
-                            id: "2870270",
-                            lastName: "",
-                            mobile: "",
-                            payMessage: "",
-
-                            paymentConfig: {
-                                paymentDialect: "payment_field_Opay",
-                                paymentName: "Opay",
-
-                                paymentTemplateItem: [
-                                    {
-                                        fieldName: "realName",
-                                        labelDialect: "input_field_realName",
-                                        placeholderDialect: "input_tip_realName"
-                                    },
-                                    {
-                                        fieldName: "accountNo",
-                                        labelDialect: "input_field_accountNo",
-                                        placeholderDialect: "input_tip_accountNo"
-                                    },
-                                    {
-                                        fieldName: "branchName",
-                                        labelDialect: "input_field_branchName",
-                                        placeholderDialect: "input_tip_branchName"
-                                    },
-                                    {
-                                        fieldName: "bankName",
-                                        labelDialect: "input_field_bankName",
-                                        placeholderDialect: "input_tip_bankName"
-                                    }
-                                ],
-
-                                paymentType: 520
-                            },
-
-                            paymentExt1: "",
-                            paymentExt2: "",
-                            paymentExt3: "",
-                            paymentExt4: "",
-                            paymentExt5: "",
-                            paymentExt6: "",
-
-                            paymentTemplateVersion: 1,
-                            paymentType: 520,
-                            qrcode: "",
-
-                            realName: "muhsin gambo ",
-                            realNameVerified: true,
-                            secondLastName: "",
-                            visible: 1
-                        },
-
-                        {
-                            accountNo: "0436384779",
-                            bankName: "",
-                            branchName: "",
-                            businessName: "",
-                            clabe: "",
-                            concept: "",
-                            debitCardNumber: "",
-                            firstName: "",
-                            id: "2871006",
-                            lastName: "",
-                            mobile: "",
-                            payMessage: "",
-
-                            paymentConfig: {
-                                paymentDialect:
-                                    "payment_field_GTB Bank (Guarantee Trust Bank)",
-
-                                paymentName:
-                                    "GTB Bank (Guarantee Trust Bank)",
-
-                                paymentTemplateItem: [
-                                    {
-                                        fieldName: "realName",
-                                        labelDialect: "input_field_realName",
-                                        placeholderDialect: "input_tip_realName"
-                                    },
-                                    {
-                                        fieldName: "accountNo",
-                                        labelDialect: "input_field_accountNo",
-                                        placeholderDialect: "input_tip_accountNo"
-                                    },
-                                    {
-                                        fieldName: "branchName",
-                                        labelDialect: "input_field_branchName",
-                                        placeholderDialect: "input_tip_branchName"
-                                    },
-                                    {
-                                        fieldName: "bankName",
-                                        labelDialect: "input_field_bankName",
-                                        placeholderDialect: "input_tip_bankName"
-                                    }
-                                ],
-
-                                paymentType: 516
-                            },
-
-                            paymentExt1: "",
-                            paymentExt2: "",
-                            paymentExt3: "",
-                            paymentExt4: "",
-                            paymentExt5: "",
-                            paymentExt6: "",
-
-                            paymentTemplateVersion: 1,
-                            paymentType: 516,
-                            qrcode: "",
-
-                            realName: "muhsin gambo",
-                            realNameVerified: true,
-                            secondLastName: "",
-                            visible: 1
-                        },
-
-                        {
-                            accountNo: "00",
-                            bankName: "",
-                            branchName: "",
-                            businessName: "",
-                            clabe: "",
-                            concept: "",
-                            debitCardNumber: "",
-                            firstName: "",
-                            id: "2871319",
-                            lastName: "",
-                            mobile: "",
-                            payMessage: "",
-
-                            paymentConfig: {
-                                paymentDialect: "payment_field_First Bank",
-                                paymentName: "First Bank",
-
-                                paymentTemplateItem: [
-                                    {
-                                        fieldName: "realName",
-                                        labelDialect: "input_field_realName",
-                                        placeholderDialect: "input_tip_realName"
-                                    },
-                                    {
-                                        fieldName: "accountNo",
-                                        labelDialect: "input_field_accountNo",
-                                        placeholderDialect: "input_tip_accountNo"
-                                    },
-                                    {
-                                        fieldName: "branchName",
-                                        labelDialect: "input_field_branchName",
-                                        placeholderDialect: "input_tip_branchName"
-                                    },
-                                    {
-                                        fieldName: "bankName",
-                                        labelDialect: "input_field_bankName",
-                                        placeholderDialect: "input_tip_bankName"
-                                    }
-                                ],
-
-                                paymentType: 515
-                            },
-
-                            paymentExt1: "",
-                            paymentExt2: "",
-                            paymentExt3: "",
-                            paymentExt4: "",
-                            paymentExt5: "",
-                            paymentExt6: "",
-
-                            paymentTemplateVersion: 1,
-                            paymentType: 515,
-                            qrcode: "",
-
-                            realName: "muhsin gambo",
-                            realNameVerified: true,
-                            secondLastName: "",
-                            visible: 1
-                        },
-
-                        {
-                            accountNo: "6359473806",
-                            bankName: "Moniepoint ",
-                            branchName: "Moniepoint ",
-                            businessName: "",
-                            clabe: "",
-                            concept: "",
-                            debitCardNumber: "",
-                            firstName: "",
-                            id: "3852078",
-                            lastName: "",
-                            mobile: "",
-                            payMessage: "",
-
-                            paymentConfig: {
-                                paymentDialect: "payment_field_14",
-                                paymentName: "Bank Transfer",
-
-                                paymentTemplateItem: [
-                                    {
-                                        fieldName: "realName",
-                                        labelDialect: "input_field_realName",
-                                        placeholderDialect: "input_tip_realName"
-                                    },
-                                    {
-                                        fieldName: "accountNo",
-                                        labelDialect: "input_field_accountNo",
-                                        placeholderDialect: "input_tip_accountNo"
-                                    },
-                                    {
-                                        fieldName: "branchName",
-                                        labelDialect: "input_field_branchName",
-                                        placeholderDialect: "input_tip_branchName"
-                                    },
-                                    {
-                                        fieldName: "bankName",
-                                        labelDialect: "input_field_bankName",
-                                        placeholderDialect: "input_tip_bankName"
-                                    }
-                                ],
-
-                                paymentType: 14
-                            },
-
-                            paymentExt1: "",
-                            paymentExt2: "",
-                            paymentExt3: "",
-                            paymentExt4: "",
-                            paymentExt5: "",
-                            paymentExt6: "",
-
-                            paymentTemplateVersion: 1,
-                            paymentType: 14,
-                            qrcode: "",
-
-                            realName: "MUHSIN Gambo",
-                            realNameVerified: true,
-                            secondLastName: "",
-                            visible: 1
-                        }
-                    ],
-
-                    tradingPreferenceSet: {
-                        completeRateDay30: "0",
-                        hasCompleteRateDay30: 0,
-                        hasNationalLimit: 1,
-                        hasOrderFinishNumberDay30: 0,
-                        hasRegisterTime: 0,
-                        hasSingleUserOrderLimit: 0,
-                        hasUnPostAd: 1,
-                        isEmail: 0,
-                        isKyc: 1,
-                        isMobile: 0,
-                        nationalLimit: "NGA",
-                        orderFinishNumberDay30: 0,
-                        registerTimeThreshold: 0,
-                        singleUserOrderLimit: 0
-                    }
-                };
-                */
-                
-                
                 const res = await fetch(`${API_URL}/ad-price-limit`, {
-                    method: 'POST', 
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                    },
-                    body: JSON.stringify(payload)
-                });
+                    method: 'POST', 
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify(payload)
+                });
 
-                const data = await res.json();
+                const data = await res.json();
 
-                if (data && data.price) {
-                    topperMerchant.price = parseFloat(data.price);
+                if (data && data.price) {
+                    topperMerchant.price = parseFloat(data.price);
 
-                    // Update the price internally in the competitors array if it exists
-                    const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
-                    if (compIndex > -1) {
-                        competitors[compIndex].price = topperMerchant.price;
-                    }
+                    // Update the price in the competitors array
+                    const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
+                    if (compIndex > -1) {
+                        competitors[compIndex].price = topperMerchant.price;
+                    }
 
-                    // Update UI Option directly without causing a full select re-render
-                    const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
-                    if (topperOption) {
-                        topperOption.dataset.price = topperMerchant.price;
-                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
-                    }
+                    // Update UI Option directly without causing a full select re-render
+                    const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
+                    if (topperOption) {
+                        topperOption.dataset.price = topperMerchant.price;
+                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
+                    }
 
-                    // If actively tracking TOPPER-BTC, trigger the ratchet check
-                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
-                        trackMerchant();
-                    }
-                }
+                    // If actively tracking TOPPER-BTC, trigger the ratchet check
+                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
+                        trackMerchant();
+                    }
+                }
 
                 
             } catch (e) {
@@ -617,66 +328,14 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Fetch Competitors
-        |--------------------------------------------------------------------------
-        */
-        async function fetchCompetitors() {
-            if (!selectedToken || !selectedCurrency) return;
-            
-            try {
-                /*
-                const res = await fetch(`${API_URL}/analyze-market`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_key: API_KEY,
-                        api_secret: API_SECRET,
-                        tokenId: selectedToken,
-                        currencyId: selectedCurrency,
-                        side: '0',
-                        marginPct: 4
-                    })
-                });
-                */
-
-                const data = {
-                    status: true,
-                    top_10_competitors: []
-                };
-
-                //const data = await res.json();
-                if (!data.status) return;
-
-                competitors = data.top_10_competitors || [];
-
-                // Inject TOPPER-BTC at the top of competitors list
-                competitors.unshift({ ...topperMerchant });
-
-                renderCompetitors();
-
-                if (tracking && selectedMerchantId) {
-                    if (plusModeToggle && plusModeToggle.checked) {
-                        await trackMerchantPlus();
-                    } else {
-                        await trackMerchantRatchet();
-                    }
-                }
-            } catch (e) {
-                console.log(e);
-            }
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Render Competitors
-        |--------------------------------------------------------------------------
-        */
+        | Render Competitors — Only TOPPER-BTC
+        |--------------------------------------------------------------------------*/
         function renderCompetitors() {
             const selected = selectedMerchantId;
             merchantSelect.innerHTML = `<option value="">Select Merchant</option>`;
 
-            competitors.forEach((merchant, index) => {
-                const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : `#${index}`;
+            competitors.forEach((merchant) => {
+                const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : '';
 
                 merchantSelect.innerHTML += `
                     <option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>
@@ -689,8 +348,7 @@
         /*
         |--------------------------------------------------------------------------
         | Merchant Selected
-        |--------------------------------------------------------------------------
-        */
+        |--------------------------------------------------------------------------*/
         merchantSelect.addEventListener('change', async function () {
             const option = this.options[this.selectedIndex];
             if (!option.value) return;
@@ -709,25 +367,6 @@
             document.getElementById('merchantPrice').innerHTML = referencePrice;
             document.getElementById('trackingStatus').innerHTML = 'Tracking Initiated';
 
-            if (selectedMerchantId !== 'TOPPER-BTC') {
-                try {
-                    await fetch("{{ route('dashboard.com.store') }}", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify({
-                            merchant_id: selectedMerchantId,
-                            username: selectedMerchantName,
-                            price: referencePrice
-                        })
-                    });
-                } catch (e) {
-                    console.log(e);
-                }
-            }
-
             if (!isNaN(referencePrice)) {
                 await updateAdPrice(referencePrice);
             }
@@ -737,14 +376,13 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Track Merchant Ratchet (Standard Mode)
-        |--------------------------------------------------------------------------
-        */
-        async function trackMerchantRatchet() {
+        | Track Merchant — Price Only Goes Up, Never Down
+        |--------------------------------------------------------------------------*/
+        async function trackMerchant() {
             const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
 
             if (!merchant) {
-                document.getElementById('trackingStatus').innerHTML = 'Merchant not in Top 10';
+                document.getElementById('trackingStatus').innerHTML = 'TOPPER-BTC not loaded yet';
                 return;
             }
 
@@ -753,52 +391,21 @@
 
             document.getElementById('merchantPrice').innerHTML = currentPrice;
 
-            if (selectedMerchantId === 'TOPPER-BTC') {
-                if (currentPrice <= lastMerchantPrice) {
-                    document.getElementById('trackingStatus').innerHTML = `At API Limit (${lastMerchantPrice})`;
-                    return; 
-                }
-                document.getElementById('trackingStatus').innerHTML = 'Syncing to Limit (Upwards)';
-            } else {
-                if (currentPrice === lastMerchantPrice) {
-                    document.getElementById('trackingStatus').innerHTML = `Matching Market (${lastMerchantPrice})`;
-                    return; 
-                }
-                if (currentPrice > lastMerchantPrice) {
-                    document.getElementById('trackingStatus').innerHTML = 'Tracking Upwards';
-                } else {
-                    document.getElementById('trackingStatus').innerHTML = 'Tracking Downwards';
-                }
+            // Ratchet: only update when price goes UP, never down
+            if (currentPrice <= lastMerchantPrice) {
+                document.getElementById('trackingStatus').innerHTML = `Holding at ${lastMerchantPrice} (price did not increase)`;
+                return;
             }
 
+            document.getElementById('trackingStatus').innerHTML = `Price increased! Updating to ${currentPrice}`;
             lastMerchantPrice = currentPrice;
             await updateAdPrice(currentPrice);
-
-            if (selectedMerchantId !== 'TOPPER-BTC') {
-                try {
-                    await fetch("{{ route('dashboard.com.store') }}", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify({
-                            merchant_id: merchant.id,
-                            username: merchant.nickName,
-                            price: currentPrice
-                        })
-                    });
-                } catch (e) {
-                    console.log(e);
-                }
-            }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Track Merchant Plus Mode
-        |--------------------------------------------------------------------------
-        */
+        | Track Merchant Plus Mode — Price Only Goes Up, Never Down
+        |--------------------------------------------------------------------------*/
         async function trackMerchantPlus() {
             const plusTimerMs = parseInt(document.getElementById('plusTimer')?.value) || 0;
             const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
@@ -806,7 +413,7 @@
             const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
 
             if (!merchant) {
-                document.getElementById('trackingStatus').innerHTML = 'Plus: Merchant lost. Waiting...';
+                document.getElementById('trackingStatus').innerHTML = 'Plus: TOPPER-BTC not loaded. Waiting...';
                 return;
             }
 
@@ -815,44 +422,35 @@
 
             document.getElementById('merchantPrice').innerHTML = currentPrice;
 
-            if (selectedMerchantId === 'TOPPER-BTC') {
-                if (currentPrice <= lastMerchantPrice && timeSinceLastUpdate < plusTimerMs) {
-                    document.getElementById('trackingStatus').innerHTML = `At Limit (${lastMerchantPrice})`;
-                    return;
-                }
-                document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Syncing Limit (Plus)</span>';
-                lastMerchantPrice = currentPrice;
-                lastSuccessfulUpdateTime = Date.now();
-                await updateAdPrice(currentPrice);
+            // Ratchet: price only goes up, never down
+            if (currentPrice <= lastMerchantPrice && timeSinceLastUpdate < plusTimerMs) {
+                document.getElementById('trackingStatus').innerHTML = `Holding at ${lastMerchantPrice} (Plus)`;
                 return;
             }
 
-            if (timeSinceLastUpdate >= plusTimerMs) {
-                toast(`Timer expired! Re-editing to ${selectedMerchantName}'s current price (${currentPrice})`, 'success');
-                
-                lastMerchantPrice = currentPrice;
-                lastSuccessfulUpdateTime = Date.now();
-                
-                document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Timer Resync</span>';
-                await updateAdPrice(currentPrice);
-                return;
-            }
-
+            // Only update if the price actually increased
             if (currentPrice > lastMerchantPrice) {
-                document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Tracking Upwards</span>';
+                document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Price Up! Syncing (Plus)</span>';
                 lastMerchantPrice = currentPrice;
                 lastSuccessfulUpdateTime = Date.now();
                 await updateAdPrice(currentPrice);
-            } else {
-                document.getElementById('trackingStatus').innerHTML = `Maintaining (${lastMerchantPrice})`;
+                return;
             }
+
+            // Timer expired but price hasn't increased — hold, don't go down
+            if (timeSinceLastUpdate >= plusTimerMs) {
+                document.getElementById('trackingStatus').innerHTML = `Timer expired. Holding at ${lastMerchantPrice} (no price increase)`;
+                lastSuccessfulUpdateTime = Date.now();
+                return;
+            }
+
+            document.getElementById('trackingStatus').innerHTML = `Maintaining (${lastMerchantPrice})`;
         }
 
         /*
         |--------------------------------------------------------------------------
         | Update Advertisement (With 1-Second Auto-Retry)
-        |--------------------------------------------------------------------------
-        */
+        |--------------------------------------------------------------------------*/
         async function updateAdPrice(newPrice) {
             targetAdPrice = newPrice;
             if (updatingAd) return;
@@ -904,21 +502,19 @@
         /*
         |--------------------------------------------------------------------------
         | Intervals / Polling Loops
-        |--------------------------------------------------------------------------
-        */
+        |--------------------------------------------------------------------------*/
 
         // 1. Fetch TOPPER Limit Price every 1 second
         setInterval(fetchTopperPrice, 1000);
 
-        /*
-        // 2. Market Poll Loop every 3 seconds
+        // 2. Plus Mode Track Loop every 3 seconds
         setInterval(() => {
-            if (selectedToken && selectedCurrency) {
-                fetchCompetitors();
+            if (tracking && selectedMerchantId && plusModeToggle && plusModeToggle.checked) {
+                trackMerchantPlus();
+            } else if (tracking && selectedMerchantId) {
+                trackMerchant();
             }
         }, 3000);
-
-        */
 
         // 3. Visual Countdown Timer UI Loop every 1 second
         setInterval(() => {
