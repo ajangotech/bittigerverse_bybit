@@ -256,7 +256,7 @@
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
 
             fetchTopperPrice();
-            //await fetchCompetitors();
+            await fetchCompetitors();
         });
 
         /*
@@ -671,11 +671,13 @@
             competitors.forEach((merchant, index) => {
                 const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : `#${index}`;
 
+                /*
                 merchantSelect.innerHTML += `
                     <option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>
                         ${displayPrefix} | ${merchant.nickName} | ${merchant.price}
                     </option>
                 `;
+                */
             });
         }
 
