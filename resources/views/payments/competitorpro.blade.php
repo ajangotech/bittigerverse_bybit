@@ -908,7 +908,7 @@
         // 2. Market Poll Loop every 3 seconds
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
-                fetchCompetitors();
+                //fetchCompetitors();
             }
         }, 3000);
 
