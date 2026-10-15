@@ -274,7 +274,7 @@
             if (!ad) return;
 
             try {
-                /*
+                
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
@@ -290,6 +290,7 @@
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
                 
+                /*
 
                 /*
                 const payload = {
