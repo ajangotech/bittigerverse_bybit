@@ -290,9 +290,9 @@
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
                 
-                /*
 
                 /*
+
                 const payload = {
                     api_key: "2sFzCpV8cHiZmwTPkW",
                     api_secret: "cdmqIm71yQq1d6jboPW1EcK0vwq1Lq8jO7hQ",
@@ -621,9 +621,7 @@
         |--------------------------------------------------------------------------
         | Fetch Competitors
         |--------------------------------------------------------------------------
-        
         */
-
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
 
@@ -649,7 +647,7 @@
                 // Inject TOPPER-BTC at the top of competitors list
                 competitors.unshift({ ...topperMerchant });
 
-                //renderCompetitors();
+                renderCompetitors();
 
                 if (tracking && selectedMerchantId) {
                     if (plusModeToggle && plusModeToggle.checked) {
@@ -910,7 +908,7 @@
         // 2. Market Poll Loop every 3 seconds
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
-                //fetchCompetitors();
+                fetchCompetitors();
             }
         }, 3000);
 
