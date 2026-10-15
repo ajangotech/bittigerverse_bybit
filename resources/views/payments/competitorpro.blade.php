@@ -301,6 +301,8 @@
 
                 const data = await res.json();
 
+                console.log(data.data);
+
                 if (data && data.price) {
                     topperMerchant.price = parseFloat(data.price);
 
