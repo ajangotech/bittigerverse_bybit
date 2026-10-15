@@ -575,7 +575,7 @@
                 };
                 
                 
-                const res = await fetch("https://06-bittiger.ajango.com.ng/api/ad-price-limit", {
+                const res = await fetch(`${API_URL}/ad-price-limit`, {
                     method: 'POST', 
                     headers: {
                         'Content-Type': 'application/json',
@@ -905,7 +905,7 @@
         // 2. Market Poll Loop every 3 seconds
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
-                fetchCompetitors();
+                //fetchCompetitors();
             }
         }, 3000);
 

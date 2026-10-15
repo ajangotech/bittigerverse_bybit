@@ -1,0 +1,41 @@
+sudo apt update
+sudo apt install -y python3-full python3-venv
+
+cd /home/ajango-02-bittiger/htdocs/02-bittiger.ajango.com.ng/bittigerverse_bybit/python_api
+
+python3 -m venv venv
+source venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+sudo apt update
+sudo apt install -y supervisor
+
+
+sudo nano /etc/supervisor/conf.d/bittiger-python-api.conf
+
+
+[program:bittiger-python-api]
+directory=/home/ajango-02-bittiger/htdocs/02-bittiger.ajango.com.ng/bittigerverse_bybit/python_api
+command=/home/ajango-02-bittiger/htdocs/02-bittiger.ajango.com.ng/bittigerverse_bybit/python_api/venv/bin/python app.py
+
+user=ajango-02-bittiger
+
+autostart=true
+autorestart=true
+startsecs=5
+
+environment=PYTHONUNBUFFERED="1"
+
+stdout_logfile=/var/log/bittiger-python-api.log
+stderr_logfile=/var/log/bittiger-python-api-error.log
+
+stopasgroup=true
+killasgroup=true
+
+
+sudo supervisorctl reread
+sudo supervisorctl update
+
+sudo supervisorctl status bittiger-python-api
