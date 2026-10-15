@@ -274,7 +274,7 @@
             if (!ad) return;
 
             try {
-                
+                /*
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
@@ -289,8 +289,7 @@
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
-                
-                /*
+                */
 
                 const payload = {
                     api_key: "2sFzCpV8cHiZmwTPkW",
@@ -574,7 +573,6 @@
                         singleUserOrderLimit: 0
                     }
                 };
-                */
                 
                 
                 const res = await fetch(`${API_URL}/ad-price-limit`, {
@@ -620,7 +618,7 @@
         |--------------------------------------------------------------------------
         | Fetch Competitors
         |--------------------------------------------------------------------------
-        */
+        
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
 
@@ -659,6 +657,7 @@
                 console.log(e);
             }
         }
+        */
 
         /*
         |--------------------------------------------------------------------------
