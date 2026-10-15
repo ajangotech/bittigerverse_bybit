@@ -256,7 +256,7 @@
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
 
             fetchTopperPrice();
-            //await fetchCompetitors();
+            await fetchCompetitors();
         });
 
         /*
@@ -906,7 +906,7 @@
         // 2. Market Poll Loop every 3 seconds
         setInterval(() => {
             if (selectedToken && selectedCurrency) {
-                //fetchCompetitors();
+                fetchCompetitors();
             }
         }, 3000);
 
