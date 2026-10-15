@@ -624,6 +624,7 @@
             if (!selectedToken || !selectedCurrency) return;
 
             try {
+                /*
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -636,6 +637,7 @@
                         marginPct: 4
                     })
                 });
+                */
 
                 const data = await res.json();
                 if (!data.status) return;
