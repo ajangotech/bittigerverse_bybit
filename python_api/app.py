@@ -28,7 +28,7 @@ COPIER_TOKEN_ID = "BTC"
 COPIER_CURRENCY_ID = "NGN"
 COPIER_SIDE = "0"          # 0 = BUY
 COPIER_MARGIN_PCT = 0
-COPIER_INTERVAL = 1      # 200ms
+COPIER_INTERVAL = 0.2      # 200ms
 
 # Runtime copier state
 copier_state = {
