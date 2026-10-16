@@ -1,5 +1,6 @@
 import requests
 from bybit_p2p import P2P
+import requests
 import time
 import hmac
 import re
@@ -10,149 +11,19 @@ from functools import wraps
 from dotenv import load_dotenv
 import os
 import threading
+import webbrowser
 import logging
 
 load_dotenv()
 
+logger = logging.getLogger("auto_topper")
+
 app = Flask(__name__)
 application = app
-
-# Configure logging for background worker tracking
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 #ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "https://127.0.0.1:8090")
 #CORS(app, origins=[ALLOWED_ORIGINS])
 CORS(app, resources={r"/*": {"origins": "*"}})
-
-# =========================
-# 🤖 BACKGROUND AUTO-COPIER STATE & WORKER
-# =========================
-ACTIVE_COPIERS = {}
-copier_lock = threading.Lock()
-
-def start_background_copier_worker():
-    """Background worker that loops every 1 second to update active copier ads on the backend."""
-    def run_loop():
-        while True:
-            time.sleep(1) # Run loop every 1 second
-            with copier_lock:
-                jobs = list(ACTIVE_COPIERS.items())
-            
-            for ad_id, config in jobs:
-                if not config.get("active"):
-                    continue
-                try:
-                    execute_backend_auto_copy(ad_id, config)
-                except Exception as e:
-                    logger.error(f"Error in background copier for ad {ad_id}: {str(e)}")
-
-    thread = threading.Thread(target=run_loop, daemon=True)
-    thread.start()
-
-def execute_backend_auto_copy(ad_id, config):
-    api = config["api"]
-    token_id = config["tokenId"]
-    currency_id = config["currencyId"]
-    side = config["side"]
-    margin_pct = config["marginPct"]
-
-    # 1. Fetch online market ads using existing Bybit API client
-    ads = api.get_online_ads(
-        tokenId=token_id,
-        currencyId=currency_id,
-        side=side,
-        size="30",
-        vaMaker=True,
-        authMaker=False,
-        bulkMaker=False,
-        canTrade=False,
-        verificationFilter=0,
-        sortType="OVERALL_RANKING",
-        sortStrategyCode="DEFAULT_BUY",
-        itemRegion=1,
-        tradeWith=False
-    )
-
-    items = []
-    if isinstance(ads, dict):
-        items = ads.get("result", {}).get("items", [])
-
-    competitors = []
-    for ad in items:
-        try:
-            price = float(ad.get("price", 0))
-            if price <= 0:
-                continue
-            competitors.append({"price": price, "id": ad.get("id")})
-        except Exception:
-            continue
-
-    if not competitors:
-        return
-
-    # 2. Compute Top Competitor Price & Recommended Price based on side
-    if side == "0":  # BUY -> Highest market price
-        top_competitor_price = max(c["price"] for c in competitors)
-        recommended_price = top_competitor_price * (1 + (margin_pct / 100))
-    else:            # SELL -> Lowest market price
-        top_competitor_price = min(c["price"] for c in competitors)
-        recommended_price = top_competitor_price * (1 - (margin_pct / 100))
-
-    final_price = round(recommended_price, 2)
-
-    # 3. Check if price update is identical to avoid redundant API calls
-    last_price = config.get("last_price")
-    if last_price == final_price:
-        return
-
-    # 4. Fetch user's ad details/list to get the full payload structure required by update_ad
-    user_ads_resp = api.get_ads_list()
-    user_items = []
-    if isinstance(user_ads_resp, dict):
-        user_items = user_ads_resp.get("result", {}).get("items", [])
-
-    current_ad = next((x for x in user_items if str(x.get("id")) == str(ad_id)), None)
-    if not current_ad:
-        return
-
-    # Extract payment IDs and trading preferences for safe update payload formatting
-    payment_ids = [p.get("id") for p in current_ad.get("paymentTerms", []) if isinstance(p, dict) and p.get("id")]
-    tp = current_ad.get("tradingPreferenceSet", {})
-    trading_pref = {
-        "hasUnPostAd": int(tp.get("hasUnPostAd", 0)),
-        "isKyc": int(tp.get("isKyc", 0)),
-        "isEmail": int(tp.get("isEmail", 0)),
-        "isMobile": int(tp.get("isMobile", 0)),
-        "hasRegisterTime": int(tp.get("hasRegisterTime", 0)),
-        "registerTimeThreshold": int(tp.get("registerTimeThreshold", 0)),
-        "orderFinishNumberDay30": int(tp.get("orderFinishNumberDay30", 0)),
-        "hasOrderFinishNumberDay30": int(tp.get("hasOrderFinishNumberDay30", 0)),
-        "hasCompleteRateDay30": int(tp.get("hasCompleteRateDay30", 0)),
-        "hasNationalLimit": int(tp.get("hasNationalLimit", 0)),
-        "completeRateDay30": tp.get("completeRateDay30", ""),
-        "nationalLimit": tp.get("nationalLimit", "")
-    }
-
-    # 5. Execute ad price update via Bybit client
-    update_res = api.update_ad(
-        id=current_ad.get("id"),
-        priceType=int(current_ad.get("priceType", 0)),
-        premium=float(current_ad.get("premium", 0)),
-        price=float(final_price),
-        minAmount=float(current_ad.get("minAmount", 0)),
-        maxAmount=float(current_ad.get("maxAmount", 0)),
-        remark=current_ad.get("remark", ""),
-        tradingPreferenceSet=trading_pref,
-        paymentIds=payment_ids,
-        actionType="MODIFY",
-        quantity=str(current_ad.get("quantity", "1")),
-        paymentPeriod=int(current_ad.get("paymentPeriod", 15))
-    )
-
-    if update_res and update_res.get("status") is not False:
-        config["last_price"] = final_price
-        logger.info(f"Successfully auto-copied ad {ad_id} to new top price: {final_price}")
 
 # =========================
 # 🔐 BASIC SECURITY LAYER
@@ -175,7 +46,6 @@ def require_api_keys(f):
         return f(data)
 
     return wrapper
-
 # =========================
 # 🔧 HELPER FUNCTION
 # =========================
@@ -230,16 +100,25 @@ def update_ad(data):
 
         result = api.update_ad(
             id=data.get("id"),
+
             priceType=int(data.get("priceType", 0)),
             premium=float(data.get("premium", 0)),
+
             price=float(data.get("price")),
+
             minAmount=float(data.get("minAmount")),
             maxAmount=float(data.get("maxAmount")),
+
             remark=data.get("remark", ""),
+
             tradingPreferenceSet=trading_pref,
+
             paymentIds=payment_ids,
+
             actionType="MODIFY",
+
             quantity=str(data.get("quantity") or data.get("lastQuantity", "1")),
+
             paymentPeriod=int(data.get("paymentPeriod", 15))
         )
 
@@ -260,6 +139,7 @@ def ad_price_limit(data):
     try:
         api = get_api(data)
 
+        # Extract payment IDs
         payment_ids = [
             p.get("id")
             for p in data.get("paymentTerms", [])
@@ -274,16 +154,35 @@ def ad_price_limit(data):
             "isEmail": int(tp.get("isEmail", 0)),
             "isMobile": int(tp.get("isMobile", 0)),
             "hasRegisterTime": int(tp.get("hasRegisterTime", 0)),
-            "registerTimeThreshold": int(tp.get("registerTimeThreshold", 0)),
-            "orderFinishNumberDay30": int(tp.get("orderFinishNumberDay30", 0)),
-            "hasOrderFinishNumberDay30": int(tp.get("hasOrderFinishNumberDay30", 0)),
-            "hasCompleteRateDay30": int(tp.get("hasCompleteRateDay30", 0)),
-            "hasNationalLimit": int(tp.get("hasNationalLimit", 0)),
-            "completeRateDay30": tp.get("completeRateDay30", ""),
-            "nationalLimit": tp.get("nationalLimit", "")
+            "registerTimeThreshold": int(
+                tp.get("registerTimeThreshold", 0)
+            ),
+            "orderFinishNumberDay30": int(
+                tp.get("orderFinishNumberDay30", 0)
+            ),
+            "hasOrderFinishNumberDay30": int(
+                tp.get("hasOrderFinishNumberDay30", 0)
+            ),
+            "hasCompleteRateDay30": int(
+                tp.get("hasCompleteRateDay30", 0)
+            ),
+            "hasNationalLimit": int(
+                tp.get("hasNationalLimit", 0)
+            ),
+            "completeRateDay30": tp.get(
+                "completeRateDay30", ""
+            ),
+            "nationalLimit": tp.get(
+                "nationalLimit", ""
+            )
         }
 
         try:
+
+            # This is ONLY used to ask Bybit for its
+            # allowed price range.
+            #
+            # The response is NOT used to update anything.
             api.update_ad(
                 id=data.get("id"),
                 priceType=int(data.get("priceType", 0)),
@@ -295,10 +194,18 @@ def ad_price_limit(data):
                 tradingPreferenceSet=trading_pref,
                 paymentIds=payment_ids,
                 actionType="MODIFY",
-                quantity=str(data.get("quantity") or data.get("lastQuantity") or "1"),
-                paymentPeriod=int(data.get("paymentPeriod", 15))
+                quantity=str(
+                    data.get("quantity")
+                    or data.get("lastQuantity")
+                    or "1"
+                ),
+                paymentPeriod=int(
+                    data.get("paymentPeriod", 15)
+                )
             )
 
+            # If the requested price is accepted,
+            # simply return the requested price.
             requested_price = str(data.get("price", "0"))
 
             return jsonify({
@@ -308,37 +215,69 @@ def ad_price_limit(data):
             })
 
         except Exception as e:
+
             error_message = str(e)
-            pattern = r"lower than\s+([\d.]+)\s+or higher than\s+([\d.]+)"
-            match = re.search(pattern, error_message)
+
+            # ---------------------------------
+            # EXTRACT BYBIT PRICE RANGE
+            # ---------------------------------
+            import re
+
+            pattern = (
+                r"lower than\s+([\d.]+)"
+                r"\s+or higher than\s+([\d.]+)"
+            )
+
+            match = re.search(
+                pattern,
+                error_message
+            )
 
             if match:
+
                 minimum_price = match.group(1).rstrip(".")
                 maximum_price = match.group(2).rstrip(".")
-                requested_price = str(data.get("price", "0"))
+
+                requested_price = str(
+                    data.get("price", "0")
+                )
 
                 return jsonify({
                     "status": True,
                     "price_limit": True,
+
                     "price": maximum_price,
+
                     "minimum_price": minimum_price,
                     "maximum_price": maximum_price,
+
                     "requested_price": requested_price,
-                    "price_exceeded": (float(requested_price) > float(maximum_price)),
-                    "price_below_minimum": (float(requested_price) < float(minimum_price))
+
+                    "price_exceeded": (
+                        float(requested_price)
+                        > float(maximum_price)
+                    ),
+
+                    "price_below_minimum": (
+                        float(requested_price)
+                        < float(minimum_price)
+                    )
                 })
 
+            # ---------------------------------
+            # OTHER ERROR
+            # ---------------------------------
             return jsonify({
                 "status": False,
                 "error": error_message
             }), 500
 
     except Exception as e:
+
         return jsonify({
             "status": False,
             "error": str(e)
         }), 500
-
 
 # =========================
 # 💳 PAYMENT TYPES
@@ -348,11 +287,13 @@ def ad_price_limit(data):
 def payment_types(data):
     try:
         api = get_api(data)
+
         result = api.get_user_payment_types()
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # =========================
 # 💰 BALANCE
@@ -362,11 +303,14 @@ def payment_types(data):
 def balance(data):
     try:
         api = get_api(data)
+
         result = api.get_current_balance(
             accountType=data.get("accountType", "FUND"),
             coin=data.get("coin", "USDC")
         )
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -379,8 +323,11 @@ def balance(data):
 def account(data):
     try:
         api = get_api(data)
+
         result = api.get_account_information()
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -393,21 +340,29 @@ def account(data):
 def ads(data):
     try:
         api = get_api(data)
+
+        # 1. Extract the sortBy parameter from frontend JSON (default to completion_rate)
         sort_by = data.get("sortBy", "completion_rate")
+
+        # 2. Define the allowed sorting filters mapped to what Bybit expects
         allowed_sorting = {
             "price": "price",
             "orders": "orders",
             "completion_rate": "completion_rate"
         }
-        
+
+        # 3. Block invalid sorting attempts
         if sort_by not in allowed_sorting:
             return jsonify({
                 "error": "Invalid sortBy value. Allowed values are: price, orders, completion_rate",
                 "allowed": list(allowed_sorting.keys())
             }), 400
 
+        # 4. Pass the sorting parameter to your get_ads_list method
         result = api.get_ads_list(sort_by=allowed_sorting[sort_by])
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -420,8 +375,13 @@ def ads(data):
 def ad_details(data):
     try:
         api = get_api(data)
-        result = api.get_ad_details(itemId=data.get("itemId"))
+
+        result = api.get_ad_details(
+            itemId=data.get("itemId")
+        )
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -434,8 +394,13 @@ def ad_details(data):
 def remove_ad(data):
     try:
         api = get_api(data)
-        result = api.remove_ad(itemId=data.get("itemId"))
+
+        result = api.remove_ad(
+            itemId=data.get("itemId")
+        )
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -448,11 +413,14 @@ def remove_ad(data):
 def orders(data):
     try:
         api = get_api(data)
+
         result = api.get_orders(
             page=data.get("page", 1),
             size=data.get("size", 10)
         )
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -470,16 +438,28 @@ def reference_price(data):
 
         timestamp = str(int(time.time() * 1000))
         recv_window = "5000"
+
         query_string = f"symbol={symbol}"
 
-        signature_payload = timestamp + api_key + recv_window + query_string
+        # Bybit GET signature
+        signature_payload = (
+            timestamp
+            + api_key
+            + recv_window
+            + query_string
+        )
+
         signature = hmac.new(
             api_secret.encode("utf-8"),
             signature_payload.encode("utf-8"),
             hashlib.sha256
         ).hexdigest()
 
-        url = f"https://api.bybit.com/v5/fiat/reference-price?{query_string}"
+        url = (
+            "https://api.bybit.com/v5/fiat/reference-price"
+            f"?{query_string}"
+        )
+
         headers = {
             "X-BAPI-SIGN": signature,
             "X-BAPI-API-KEY": api_key,
@@ -488,15 +468,21 @@ def reference_price(data):
             "Content-Type": "application/json"
         }
 
-        response = requests.get(url, headers=headers, timeout=20)
+        response = requests.get(
+            url,
+            headers=headers,
+            timeout=20
+        )
+
         result = response.json()
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({
             "status": False,
             "error": str(e)
         }), 500
-
 
 # =========================
 # ⏳ PENDING ORDERS
@@ -506,11 +492,14 @@ def reference_price(data):
 def pending_orders(data):
     try:
         api = get_api(data)
+
         result = api.get_pending_orders(
             page=data.get("page", 1),
             size=data.get("size", 10)
         )
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -526,9 +515,11 @@ def analyze_market(data):
 
         token_id = data.get("tokenId", "BTC")
         currency_id = data.get("currencyId", "USD")
-        side = str(data.get("side", "0"))
+        side = str(data.get("side", "0"))  # 0=BUY, 1=SELL
         min_amount = float(data.get("minAmount", 0))
         margin_pct = float(data.get("marginPct", 4))
+
+        # Extract sortBy parameter (default to "price")
         sort_by = str(data.get("sortBy", "price")).lower()
 
         ads = api.get_online_ads(
@@ -548,28 +539,34 @@ def analyze_market(data):
         )
 
         items = []
+
         if isinstance(ads, dict):
             items = ads.get("result", {}).get("items", [])
 
         competitors = []
+
         for ad in items:
             try:
                 price = float(ad.get("price", 0))
+
                 if price <= 0:
                     continue
 
                 ad_min = float(ad.get("minAmount", 0))
                 ad_max = float(ad.get("maxAmount", 0))
 
+                # Skip ads that cannot satisfy the requested amount
                 if min_amount > 0 and ad_max < min_amount:
                     continue
 
+                # Parse 30-day order count safely to an integer
                 raw_orders = ad.get("recentOrderNum", 0)
                 try:
                     recent_orders = int(raw_orders) if raw_orders is not None else 0
                 except (ValueError, TypeError):
                     recent_orders = 0
 
+                # Parse completion rate safely to a float
                 raw_rate = ad.get("recentExecuteRate", 0)
                 try:
                     recent_rate = float(str(raw_rate).replace("%", "").strip()) if raw_rate is not None else 0.0
@@ -583,10 +580,11 @@ def analyze_market(data):
                     "minAmount": ad_min,
                     "maxAmount": ad_max,
                     "quantity": ad.get("quantity"),
-                    "recentOrderNum": recent_orders,
-                    "recentExecuteRate": recent_rate,
+                    "recentOrderNum": recent_orders,        # 30-Day Total Orders
+                    "recentExecuteRate": recent_rate,      # 30-Day Completion Rate (%)
                     "paymentPeriod": ad.get("paymentPeriod")
                 })
+
             except Exception:
                 continue
 
@@ -596,19 +594,36 @@ def analyze_market(data):
                 "error": "No valid competitor ads found"
             }), 404
 
-        if side == "0":
+        # Compute Best Competitor Price based on side (for pricing margin calculation)
+        if side == "0":  # BUY -> Highest market price
             top_competitor_price = max(c["price"] for c in competitors)
             recommended_price = top_competitor_price * (1 + (margin_pct / 100))
-        else:
+        else:            # SELL -> Lowest market price
             top_competitor_price = min(c["price"] for c in competitors)
             recommended_price = top_competitor_price * (1 - (margin_pct / 100))
 
+        # Apply requested sorting filter
         if sort_by == "orders":
-            competitors = sorted(competitors, key=lambda x: x["recentOrderNum"], reverse=True)
+            # Highest 30-day total orders first
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["recentOrderNum"],
+                reverse=True
+            )
         elif sort_by == "completion_rate":
-            competitors = sorted(competitors, key=lambda x: x["recentExecuteRate"], reverse=True)
+            # Highest 30-day completion rate first
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["recentExecuteRate"],
+                reverse=True
+            )
         else:
-            competitors = sorted(competitors, key=lambda x: x["price"], reverse=(side == "0"))
+            # Price sorting (BUY: Highest to Lowest | SELL: Lowest to Highest)
+            competitors = sorted(
+                competitors,
+                key=lambda x: x["price"],
+                reverse=(side == "0")
+            )
 
         top_10 = competitors[:30]
 
@@ -619,9 +634,11 @@ def analyze_market(data):
             "side": side,
             "sort_by": sort_by,
             "ads_found": len(competitors),
+
             "top_competitor_price": round(top_competitor_price, 2),
             "margin_percent": margin_pct,
             "recommended_price": round(recommended_price, 2),
+
             "top_10_competitors": top_10
         })
 
@@ -639,14 +656,19 @@ def analyze_market(data):
 def online_ads(data):
     try:
         api = get_api(data)
+
         result = api.get_online_ads(
             tokenId=data.get("tokenId", "BTC"),
             currencyId=data.get("currencyId", "USD"),
-            side=data.get("side", "0")
+            side=data.get("side", "0")  # 0 = Buy, 1 = Sell
         )
+
         return jsonify(result)
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 
 # =========================
@@ -657,12 +679,15 @@ def online_ads(data):
 def mark_as_paid(data):
     try:
         api = get_api(data)
+
         result = api.mark_as_paid(
             orderId=data.get("orderId"),
             paymentType=str(data.get("paymentType")),
             paymentId=str(data.get("paymentId"))
         )
+
         return jsonify(result)
+
     except Exception as e:
         return jsonify({
             "status": False,
@@ -671,74 +696,355 @@ def mark_as_paid(data):
 
 
 # =========================
-# 🤖 BACKEND COPIER CONTROL ENDPOINTS
+# 🔄 AUTO-TOPPER BACKGROUND LOOP
 # =========================
-@app.route("/api/copier/start", methods=["POST"])
-@require_api_keys
-def start_copier(data):
-    api = get_api(data)
-    ad_id = data.get("adId")
-    
-    if not ad_id:
-        return jsonify({"status": False, "error": "adId is required"}), 400
+# Runs in a background thread, refreshing every 3 seconds.
+# Fetches market ads, computes the best price + margin, then
+# calls update_ad on every one of the user's own ads for the
+# same token/currency/side so the user's listing stays on top.
 
-    with copier_lock:
-        ACTIVE_COPIERS[str(ad_id)] = {
-            "active": True,
-            "api": api,
+TOPPER_REFRESH_INTERVAL = 3  # seconds
+
+_topper_lock = threading.Lock()
+_topper_thread = None
+_topper_running = False
+_topper_config = None
+_topper_last_cycle = None
+_topper_last_result = None
+_topper_error = None
+
+
+def _extract_items(response):
+    """Extract list of ad items from a bybit_p2p response."""
+    if isinstance(response, dict):
+        result = response.get("result", response)
+        if isinstance(result, dict):
+            for key in ("items", "list", "data", "adList"):
+                if key in result and isinstance(result[key], list):
+                    return result[key]
+        if isinstance(result, list):
+            return result
+    if isinstance(response, list):
+        return response
+    return []
+
+
+def _topper_cycle(cfg):
+    """Single auto-topper cycle: fetch market, compute price, update own ads."""
+    api = get_api(cfg)
+
+    token_id = cfg.get("tokenId", "BTC")
+    currency_id = cfg.get("currencyId", "NGN")
+    side = str(cfg.get("side", "0"))
+    margin_pct = float(cfg.get("marginPct", 4))
+
+    # 1. Fetch market online ads to find the best competitor price.
+    market_resp = api.get_online_ads(
+        tokenId=token_id,
+        currencyId=currency_id,
+        side=side,
+        size="30"
+    )
+    market_items = _extract_items(market_resp)
+
+    prices = []
+    for item in market_items:
+        try:
+            p = float(item.get("price", 0))
+            if p > 0:
+                prices.append(p)
+        except (ValueError, TypeError):
+            continue
+
+    if not prices:
+        return {
+            "action": "noop",
+            "reason": "No market ads found",
+            "online_count": len(market_items),
+        }
+
+    # 2. Best competitor price: highest bid for BUY, lowest ask for SELL.
+    if side == "0":
+        best_price = max(prices)
+        target_price = round(best_price * (1 + margin_pct / 100), 2)
+    else:
+        best_price = min(prices)
+        target_price = round(best_price * (1 - margin_pct / 100), 2)
+
+    # 3. Fetch the user's own ads.
+    my_ads_resp = api.get_ads_list()
+    my_items = _extract_items(my_ads_resp)
+
+    # Filter to matching token/currency/side.
+    my_matches = [
+        ad for ad in my_items
+        if str(ad.get("tokenId", "")).upper() == token_id.upper()
+        and str(ad.get("currencyId", "")).upper() == currency_id.upper()
+        and str(ad.get("side", "")) == side
+    ]
+
+    # 4. Update each matching ad with the new top price.
+    updated = []
+    for ad in my_matches:
+        item_id = ad.get("id") or ad.get("itemId")
+        current_price = float(ad.get("price", 0))
+
+        if current_price == target_price:
+            continue
+
+        payment_ids = [
+            p.get("id") for p in ad.get("paymentTerms", [])
+            if isinstance(p, dict) and p.get("id")
+        ]
+
+        tp = ad.get("tradingPreferenceSet", {})
+        trading_pref = {
+            "hasUnPostAd": int(tp.get("hasUnPostAd", 0)),
+            "isKyc": int(tp.get("isKyc", 0)),
+            "isEmail": int(tp.get("isEmail", 0)),
+            "isMobile": int(tp.get("isMobile", 0)),
+            "hasRegisterTime": int(tp.get("hasRegisterTime", 0)),
+            "registerTimeThreshold": int(tp.get("registerTimeThreshold", 0)),
+            "orderFinishNumberDay30": int(tp.get("orderFinishNumberDay30", 0)),
+            "hasOrderFinishNumberDay30": int(tp.get("hasOrderFinishNumberDay30", 0)),
+            "hasCompleteRateDay30": int(tp.get("hasCompleteRateDay30", 0)),
+            "hasNationalLimit": int(tp.get("hasNationalLimit", 0)),
+            "completeRateDay30": tp.get("completeRateDay30", ""),
+            "nationalLimit": tp.get("nationalLimit", ""),
+        }
+
+        try:
+            result = api.update_ad(
+                id=item_id,
+                priceType=int(ad.get("priceType", 0)),
+                premium=float(ad.get("premium", 0)),
+                price=target_price,
+                minAmount=float(ad.get("minAmount", 0)),
+                maxAmount=float(ad.get("maxAmount", 0)),
+                remark=ad.get("remark", ""),
+                tradingPreferenceSet=trading_pref,
+                paymentIds=payment_ids,
+                actionType="MODIFY",
+                quantity=str(ad.get("quantity") or ad.get("lastQuantity") or "1"),
+                paymentPeriod=int(ad.get("paymentPeriod", 15)),
+            )
+            updated.append({
+                "id": item_id,
+                "old_price": current_price,
+                "new_price": target_price,
+                "result": result,
+            })
+        except Exception as exc:
+            updated.append({
+                "id": item_id,
+                "old_price": current_price,
+                "new_price": target_price,
+                "error": str(exc),
+            })
+
+    return {
+        "action": "updated",
+        "best_market_price": best_price,
+        "target_price": target_price,
+        "online_count": len(market_items),
+        "my_ads_count": len(my_matches),
+        "updated_ads": updated,
+    }
+
+
+def _topper_loop():
+    global _topper_running
+    while True:
+        with _topper_lock:
+            if not _topper_running:
+                break
+            cfg = _topper_config
+
+        try:
+            result = _topper_cycle(cfg)
+            with _topper_lock:
+                _topper_last_cycle = time.strftime("%Y-%m-%d %H:%M:%S")
+                _topper_last_result = result
+                _topper_error = None
+        except Exception as exc:
+            logger.exception("Auto-topper cycle failed")
+            with _topper_lock:
+                _topper_error = str(exc)
+
+        time.sleep(TOPPER_REFRESH_INTERVAL)
+
+
+@app.route("/api/topper/start", methods=["POST"])
+@require_api_keys
+def topper_start(data):
+    global _topper_thread, _topper_running, _topper_config
+
+    with _topper_lock:
+        if _topper_running:
+            return jsonify({"ok": False, "msg": "Already running"})
+
+        _topper_config = {
+            "api_key": data.get("api_key"),
+            "api_secret": data.get("api_secret"),
             "tokenId": data.get("tokenId", "BTC"),
             "currencyId": data.get("currencyId", "NGN"),
             "side": str(data.get("side", "0")),
-            "marginPct": float(data.get("marginPct", 4)),
-            "last_price": None
+            "marginPct": data.get("marginPct", 4),
         }
+        _topper_running = True
+        _topper_error = None
 
-    return jsonify({"status": True, "message": "Auto-copier started successfully on backend."})
+    _topper_thread = threading.Thread(target=_topper_loop, daemon=True)
+    _topper_thread.start()
 
-@app.route("/api/copier/stop", methods=["POST"])
-def stop_copier():
-    data = request.get_json() or {}
-    ad_id = data.get("adId")
-    
-    with copier_lock:
-        if str(ad_id) in ACTIVE_COPIERS:
-            ACTIVE_COPIERS[str(ad_id)]["active"] = False
-            del ACTIVE_COPIERS[str(ad_id)]
+    return jsonify({"ok": True, "msg": "Started"})
 
-    return jsonify({"status": True, "message": "Auto-copier stopped successfully."})
+
+@app.route("/api/topper/stop", methods=["POST"])
+def topper_stop():
+    global _topper_running, _topper_thread
+
+    with _topper_lock:
+        _topper_running = False
+
+    if _topper_thread:
+        _topper_thread.join(timeout=5)
+        _topper_thread = None
+
+    return jsonify({"ok": True, "msg": "Stopped"})
+
+
+@app.route("/api/topper/status", methods=["GET"])
+def topper_status():
+    with _topper_lock:
+        return jsonify({
+            "running": _topper_running,
+            "config": _topper_config,
+            "last_cycle": _topper_last_cycle,
+            "last_result": _topper_last_result,
+            "error": _topper_error,
+        })
+
+
+#AutoPaymentBot
+
+def check_new_orders():
+    api = get_api()
+    orders = api.get_pending_orders(
+        page=1,
+        size=20
+    )
+    if orders["ret_code"] != 0:
+        return
+    for order in orders["result"]["items"]:
+        process_order(order)
+
+def process_order(order):
+    if order_exists(order["id"]):
+        return
+    validate_trading_rules(order)
+    verify_seller(order)
+    verify_bank(order)
+
+    payment = send_bank_transfer(order)
+    if payment["status"] != "SUCCESS":
+        notify_failure(order)
+        return
+
+    save_transaction(order, payment)
+    mark_order_paid(order)
+    send_auto_message(order)
+    notify_success(order)
+
+def validate_trading_rules(order):
+    rules = get_rules()
+    amount = float(order["amount"])
+
+    if amount < rules.minimum_amount:
+        raise Exception("Below minimum amount")
+
+    if amount > rules.maximum_amount:
+        raise Exception("Above maximum amount")
+
+def verify_bank(order):
+
+    blacklist = get_blacklisted_banks()
+    if order["bank_name"] in blacklist:
+        raise Exception("Bank is blacklisted")
+
+def verify_seller(order):
+
+    profile = bybit.get_user_profile(order["sellerUid"])
+
+    if profile["averageReleaseTime"] > settings.max_release_time:
+
+        raise Exception(
+            "Seller release time too high."
+        )
+
+def verify_account(bank_code, account_number):
+    response = requests.post(
+        KUDA_VERIFY_ENDPOINT,
+        json={
+            "bankCode": bank_code,
+            "accountNumber": account_number
+        }
+    )
+    return response.json()
+
+def send_bank_transfer(order):
+
+    payload = {
+        "beneficiaryName": order["account_name"],
+        "accountNumber": order["account_number"],
+        "bankCode": order["bank_code"],
+        "amount": order["amount"],
+        "narration": f"Order D009458458457"
+    }
+
+    response = requests.post(
+        KUDA_TRANSFER_ENDPOINT,
+        json=payload,
+        headers={
+            "Authorization": f"Bearer {KUDA_TOKEN}"
+        }
+    )
+
+
+    return response.json()
+
+def wait_for_transfer(reference):
+
+    for _ in range(30):
+        status = check_transfer(reference)
+        if status == "SUCCESS":
+            return True
+        if status == "FAILED":
+            return False
+        time.sleep(2)
+    return False
+
+def mark_order_paid(order):
+    api = get_api()
+    api.mark_order_as_paid(
+        order["id"]
+    )
+
+def notify_success(order):
+
+    print(
+        f"[SUCCESS] {order['id']} paid successfully."
+    )
+
 
 
 # =========================
 # 🚀 RUN APP
 # =========================
 def run_flask():
-    # 🔥 Automatically register and start your static auto-copier job on server startup
-    with copier_lock:
-        static_api = P2P(
-            testnet=False,
-            api_key="2hfQxfbVbg9dfBnBNq",
-            api_secret="Q06x6MlTjE0nhl3gq4JMjFgD2PUsTwQcc39u"
-        )
-        
-        # Replace 'YOUR_AD_ID_HERE' with your actual target ad ID string/number
-        static_ad_id = "2065087450549968896" 
-
-        ACTIVE_COPIERS[str(static_ad_id)] = {
-            "active": True,
-            "api": static_api,
-            "tokenId": "BTC",
-            "currencyId": "NGN",
-            "side": "0",
-            "marginPct": 4.0,
-            "last_price": None
-        }
-
-    # Start the background worker thread
-    start_background_copier_worker()
-    
-    # Run Flask server
     app.run(host="127.0.0.1", port=8090, debug=False)
 
 
 if __name__ == "__main__":
-    run_flask()
+    # start server
+    threading.Thread(target=run_flask).start()
