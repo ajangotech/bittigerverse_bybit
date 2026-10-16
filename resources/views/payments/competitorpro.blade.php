@@ -169,6 +169,7 @@
         let paused = false;
         let updatingAd = false;
         let targetAdPrice = null; 
+        let plusFetching = false;
 
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -362,11 +363,10 @@
             competitors.forEach((merchant, index) => {
                 const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : `#${index}`;
 
-                merchantSelect.innerHTML += `
-                    <option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>
-                        ${displayPrefix} | ${merchant.nickName} | ${merchant.price}
-                    </option>
-                `;
+                merchantSelect.innerHTML += ``
+                    + `<option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>`
+                    + `${displayPrefix} | ${merchant.nickName} | ${merchant.price}`
+                    + `</option>`;
             });
         }
 
@@ -430,10 +430,72 @@
         }
 
         /*
+        |--------------------------------------------------------------------------n        | Direct fetch of TOPPER price limit (no side-effects, no re-entrancy)
+        |--------------------------------------------------------------------------
+        */
+        async function fetchTopperPriceDirect() {
+            const adId = document.getElementById('adId').value;
+            if (!adId) return null;
+
+            const ad = adsData.find(x => String(x.id) === String(adId));
+            if (!ad) return null;
+
+            const payload = {
+                api_key: API_KEY,
+                api_secret: API_SECRET,
+                id: ad.id,
+                price: "999999999",
+                priceType: ad.priceType !== undefined ? ad.priceType : 0,
+                premium: ad.premium !== undefined ? ad.premium : 0,
+                minAmount: ad.minAmount,
+                maxAmount: ad.maxAmount,
+                lastQuantity: ad.lastQuantity,
+                paymentPeriod: ad.paymentPeriod,
+                paymentTerms: ad.paymentTerms,
+                tradingPreferenceSet: ad.tradingPreferenceSet
+            };
+
+            const res = await fetch(`${API_URL}/ad-price-limit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+
+            if (data && data.price) {
+                const freshPrice = parseFloat(data.price);
+                topperMerchant.price = freshPrice;
+
+                const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
+                if (compIndex > -1) {
+                    competitors[compIndex].price = freshPrice;
+                }
+
+                const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
+                if (topperOption) {
+                    topperOption.dataset.price = freshPrice;
+                    topperOption.innerHTML = `⭐ | TOPPER-BTC | ${freshPrice}`;
+                }
+
+                document.getElementById('merchantPrice').innerHTML = freshPrice;
+                return freshPrice;
+            }
+
+            return null;
+        }
+
+        /*
         |--------------------------------------------------------------------------n        | Track Merchant Plus Mode — Timer re-fetches TOPPER, Price Only Goes Up
         |--------------------------------------------------------------------------
         */
         async function trackMerchantPlus() {
+            // Prevent re-entrancy: if a Plus fetch is already in progress, skip
+            if (plusFetching) return;
+
             const plusTimerMs = parseInt(document.getElementById('plusTimer')?.value) || 0;
             const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
 
@@ -459,28 +521,32 @@
                     return;
                 }
 
-                // Timer expired — re-fetch TOPPER fresh price, then sync (only if higher)
+                // Timer expired — re-fetch TOPPER fresh price directly, then sync (only if higher)
                 if (timeSinceLastUpdate >= plusTimerMs) {
+                    plusFetching = true;
                     document.getElementById('trackingStatus').innerHTML = '<span class="text-warning fw-bold">Timer Expired! Re-fetching TOPPER...</span>';
                     toast('Timer expired! Re-fetching TOPPER price...', 'success');
-                    
-                    // Re-fetch fresh TOPPER price from API
-                    await fetchTopperPrice();
-                    
-                    // After re-fetch, get the updated price from topperMerchant
-                    const freshPrice = parseFloat(topperMerchant.price);
-                    if (!isNaN(freshPrice)) {
-                        // Only update if fresh price is higher (ratchet)
-                        if (freshPrice > lastMerchantPrice) {
-                            lastMerchantPrice = freshPrice;
-                            document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Re-fetched! Syncing to ${freshPrice}</span>`;
-                            await updateAdPrice(freshPrice);
-                        } else {
-                            document.getElementById('trackingStatus').innerHTML = `Re-fetched. Holding at ${lastMerchantPrice} (no increase)`;
+
+                    try {
+                        // Direct fetch — no re-entrant call to trackMerchantPlus
+                        const freshPrice = await fetchTopperPriceDirect();
+
+                        if (freshPrice !== null && !isNaN(freshPrice)) {
+                            if (freshPrice > lastMerchantPrice) {
+                                lastMerchantPrice = freshPrice;
+                                document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Re-fetched! Syncing to ${freshPrice}</span>`;
+                                await updateAdPrice(freshPrice);
+                            } else {
+                                document.getElementById('trackingStatus').innerHTML = `Re-fetched. Holding at ${lastMerchantPrice} (no increase)`;
+                            }
                         }
+                    } catch (e) {
+                        console.log("Failed to re-fetch Topper limit on timer expiry:", e);
+                    } finally {
+                        plusFetching = false;
                     }
-                    
-                    // Reset timer so countdown starts from previous cycle
+
+                    // Reset timer so countdown starts fresh
                     lastSuccessfulUpdateTime = Date.now();
                     return;
                 }
@@ -514,8 +580,7 @@
 
         /*
         |--------------------------------------------------------------------------n        | Update Advertisement (With 1-Second Auto-Retry)
-        |--------------------------------------------------------------------------
-        */
+        |--------------------------------------------------------------------------        */
         async function updateAdPrice(newPrice) {
             targetAdPrice = newPrice;
             if (updatingAd) return;
