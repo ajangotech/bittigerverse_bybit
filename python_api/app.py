@@ -809,7 +809,7 @@ def run_flask():
             "tokenId": "BTC",
             "currencyId": "NGN",
             "side": "0",
-            "marginPct": 4.0,
+            "marginPct": 0,
             "last_price": None
         }
 
