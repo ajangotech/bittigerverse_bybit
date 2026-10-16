@@ -180,11 +180,28 @@
             setTimeout(() => { t.className = 'app-toast'; }, 3000);
         }
 
+        if (plusTimer) {
+            plusTimer.addEventListener('change', function() {
+                if (tracking && plusModeToggle && plusModeToggle.checked) {
+                    lastSuccessfulUpdateTime = Date.now();
+                    toast(`Timer set to ${this.options[this.selectedIndex].text}`);
+                }
+            });
+        }
+
         if (plusModeToggle) {
             plusModeToggle.addEventListener('change', function() {
                 if (this.checked) {
                     lastSuccessfulUpdateTime = Date.now();
                     toast('Competitor Plus Activated');
+                    if (tracking && selectedMerchantId) {
+                        trackMerchantPlus();
+                    }
+                } else {
+                    toast('Competitor Plus Deactivated');
+                    if (tracking && selectedMerchantId) {
+                        trackMerchant();
+                    }
                 }
             });
         }
@@ -314,9 +331,13 @@
                         topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
                     }
 
-                    // If actively tracking TOPPER-BTC, trigger the ratchet check
+                    // If actively tracking TOPPER-BTC, trigger the appropriate tracking function
                     if (tracking && selectedMerchantId === 'TOPPER-BTC') {
-                        trackMerchant();
+                        if (plusModeToggle && plusModeToggle.checked) {
+                            trackMerchantPlus();
+                        } else {
+                            trackMerchant();
+                        }
                     }
                 }
 
@@ -422,13 +443,7 @@
 
             document.getElementById('merchantPrice').innerHTML = currentPrice;
 
-            // Ratchet: price only goes up, never down
-            if (currentPrice <= lastMerchantPrice && timeSinceLastUpdate < plusTimerMs) {
-                document.getElementById('trackingStatus').innerHTML = `Holding at ${lastMerchantPrice} (Plus)`;
-                return;
-            }
-
-            // Only update if the price actually increased
+            // Case 1: Price went UP — update immediately and reset timer
             if (currentPrice > lastMerchantPrice) {
                 document.getElementById('trackingStatus').innerHTML = '<span class="text-success fw-bold">Price Up! Syncing (Plus)</span>';
                 lastMerchantPrice = currentPrice;
@@ -437,14 +452,18 @@
                 return;
             }
 
-            // Timer expired but price hasn't increased — hold, don't go down
+            // Case 2: Timer expired — re-edit (re-submit) the ad at the held price to refresh it
+            // Price never goes down: we re-submit at lastMerchantPrice, not currentPrice
             if (timeSinceLastUpdate >= plusTimerMs) {
-                document.getElementById('trackingStatus').innerHTML = `Timer expired. Holding at ${lastMerchantPrice} (no price increase)`;
+                document.getElementById('trackingStatus').innerHTML = `<span class="text-warning fw-bold">Timer Expired! Re-editing at ${lastMerchantPrice}</span>`;
+                toast(`Timer expired! Re-editing ad at ${lastMerchantPrice}`, 'success');
                 lastSuccessfulUpdateTime = Date.now();
+                await updateAdPrice(lastMerchantPrice);
                 return;
             }
 
-            document.getElementById('trackingStatus').innerHTML = `Maintaining (${lastMerchantPrice})`;
+            // Case 3: Timer still running, price hasn't increased — hold
+            document.getElementById('trackingStatus').innerHTML = `Holding at ${lastMerchantPrice} (Plus)`;
         }
 
         /*
@@ -507,12 +526,14 @@
         // 1. Fetch TOPPER Limit Price every 1 second
         setInterval(fetchTopperPrice, 1000);
 
-        // 2. Plus Mode Track Loop every 3 seconds
+        // 2. Backup Track Loop every 3 seconds (fetchTopperPrice every 1s is primary)
         setInterval(() => {
-            if (tracking && selectedMerchantId && plusModeToggle && plusModeToggle.checked) {
-                trackMerchantPlus();
-            } else if (tracking && selectedMerchantId) {
-                trackMerchant();
+            if (tracking && selectedMerchantId) {
+                if (plusModeToggle && plusModeToggle.checked) {
+                    trackMerchantPlus();
+                } else {
+                    trackMerchant();
+                }
             }
         }, 3000);
 
@@ -528,8 +549,10 @@
                     const secs = Math.floor((timeLeft % 60000) / 1000);
                     countdownEl.innerHTML = `${mins}m ${secs}s`;
                 } else {
-                    countdownEl.innerHTML = 'Resyncing...';
+                    countdownEl.innerHTML = 'Re-editing...';
                 }
+            } else if (tracking && selectedMerchantId) {
+                countdownEl.innerHTML = 'Standard Mode';
             } else {
                 countdownEl.innerHTML = '---';
             }
