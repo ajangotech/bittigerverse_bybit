@@ -124,6 +124,7 @@
         let lastCopiedPrice = null;
         let updatingAd = false;
         let targetAdPrice = null;
+        let syncing = false;
 
         /*
         |--------------------------------------------------------------------------
@@ -162,11 +163,10 @@
                 adsSelect.innerHTML = `<option value="">Select Advertisement to Copy</option>`;
 
                 adsData.forEach(ad => {
-                    adsSelect.innerHTML += `
-                        <option value="${ad.id}">
-                            ${ad.tokenId}/${ad.currencyId} | Price: ${ad.price}
-                        </option>
-                    `;
+                    adsSelect.innerHTML += ``
+                        + `<option value="${ad.id}">`
+                        + `${ad.tokenId}/${ad.currencyId} | Price: ${ad.price}`
+                        + `</option>`;
                 });
 
             } catch (e) {
@@ -228,7 +228,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Fetch Top Merchant & Auto-Update Ad (0.5-Second Engine)
+        | Fetch Top Merchant & Auto-Update Ad (0.2-Second Engine)
         |--------------------------------------------------------------------------
         */
         async function syncTopperCopier() {
@@ -236,6 +236,10 @@
 
             const adId = document.getElementById('adId').value;
             if (!adId) return;
+
+            // Guard: prevent overlapping syncs — wait for the previous cycle to finish
+            if (syncing) return;
+            syncing = true;
 
             try {
                 // Fetch Top Market Competitors
@@ -302,17 +306,19 @@
                 }
 
                 // Send API request to update your Advertisement price
-                updateAdPrice(topPrice);
+                await updateAdPrice(topPrice);
 
             } catch (e) {
                 console.error('Topper Copier sync error:', e);
                 document.getElementById('trackingStatus').innerHTML = 'Sync Error (Retrying...)';
+            } finally {
+                syncing = false;
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Update Advertisement API Call (With Auto Retry - 0.5s)
+        | Update Advertisement API Call (With Auto Retry - 0.2s)
         |--------------------------------------------------------------------------
         */
         async function updateAdPrice(newPrice) {
@@ -359,14 +365,14 @@
                         if (targetAdPrice === priceToUpdate) break;
                     } else {
                         console.log('Backend Error:', result);
-                        toast('Retrying price update in 0.5s...', 'error');
-                        await new Promise(resolve => setTimeout(resolve, 500));
+                        toast('Retrying price update in 0.2s...', 'error');
+                        await new Promise(resolve => setTimeout(resolve, 200));
                     }
 
                 } catch (e) {
                     console.error('Network Error:', e);
-                    toast('Network issue. Retrying in 0.5s...', 'error');
-                    await new Promise(resolve => setTimeout(resolve, 500));
+                    toast('Network issue. Retrying in 0.2s...', 'error');
+                    await new Promise(resolve => setTimeout(resolve, 200));
                 }
             }
 
@@ -375,7 +381,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | 0.5-Second Topper Copier Loop (500ms)
+        | 0.2-Second Topper Copier Loop (200ms)
         |--------------------------------------------------------------------------
         */
         setInterval(() => {
