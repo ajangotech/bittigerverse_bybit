@@ -532,13 +532,14 @@
                         const freshPrice = await fetchTopperPriceDirect();
 
                         if (freshPrice !== null && !isNaN(freshPrice)) {
+                            // Timer expired: always re-edit the ad to the fresh TOPPER price
+                            lastMerchantPrice = freshPrice;
                             if (freshPrice > lastMerchantPrice) {
-                                lastMerchantPrice = freshPrice;
                                 document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Re-fetched! Syncing to ${freshPrice}</span>`;
-                                await updateAdPrice(freshPrice);
                             } else {
-                                document.getElementById('trackingStatus').innerHTML = `Re-fetched. Holding at ${lastMerchantPrice} (no increase)`;
+                                document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Timer Resync to ${freshPrice}</span>`;
                             }
+                            await updateAdPrice(freshPrice);
                         }
                     } catch (e) {
                         console.log("Failed to re-fetch Topper limit on timer expiry:", e);
