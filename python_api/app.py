@@ -801,7 +801,7 @@ def run_flask():
         )
         
         # ⚠️ Replace 'YOUR_AD_ID_HERE' with your actual target ad ID string/number
-        static_ad_id = "YOUR_AD_ID_HERE" 
+        static_ad_id = "2065087450549968896" 
 
         ACTIVE_COPIERS[str(static_ad_id)] = {
             "active": True,
