@@ -517,7 +517,7 @@ def analyze_market(data):
         currency_id = data.get("currencyId", "USD")
         side = str(data.get("side", "0"))  # 0=BUY, 1=SELL
         min_amount = float(data.get("minAmount", 0))
-        margin_pct = float(data.get("marginPct", 4))
+        margin_pct = float(data.get("marginPct", 0))
 
         # Extract sortBy parameter (default to "price")
         sort_by = str(data.get("sortBy", "price")).lower()
