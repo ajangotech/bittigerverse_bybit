@@ -17,31 +17,21 @@
         transition: .3s;
         background: #111;
     }
-
-    .app-toast.show {
-        opacity: 1;
-    }
-
-    .app-toast.success {
-        background: #E37216;
-    }
-
-    .app-toast.error {
-        background: #dc3545;
-    }
+    .app-toast.show { opacity: 1; }
+    .app-toast.success { background: #E37216; }
+    .app-toast.error { background: #dc3545; }
+    .app-toast.info { background: #0d6efd; }
 
     .ads-card {
         border: none;
         border-radius: 18px;
         box-shadow: 0 5px 20px rgba(0, 0, 0, .08);
     }
-
     .price-box {
         font-size: 30px;
         font-weight: bold;
         color: #E37216;
     }
-
     .badge-copying {
         background-color: #198754;
         color: white;
@@ -49,58 +39,166 @@
         border-radius: 6px;
         font-size: 12px;
     }
+    .badge-live {
+        background-color: #dc3545;
+        color: white;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 12px;
+        animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: .5; }
+    }
+    .merchant-tab {
+        cursor: pointer;
+        padding: 10px 18px;
+        border-bottom: 3px solid transparent;
+        font-weight: 600;
+        color: #888;
+    }
+    .merchant-tab.active {
+        color: #E37216;
+        border-bottom-color: #E37216;
+    }
+    .ctrl-input {
+        max-width: 130px;
+    }
 </style>
 
 <div class="container-fluid py-4">
+
+    <!-- ============ GLOBAL CONTROL BAR ============ -->
+    <div class="card ads-card mb-4">
+        <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <h5 class="fw-bold mb-0">
+                <i class="bi bi-trophy me-1"></i> Beat-To-Top Engine (Two-Merchant Leapfrog)
+            </h5>
+
+            <div class="d-flex flex-wrap align-items-center gap-3">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="mb-0 small fw-bold">Floor Price</label>
+                    <input type="number" step="0.01" min="0" id="floorPrice" class="form-control ctrl-input" placeholder="e.g. 95000">
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <label class="mb-0 small fw-bold">Step</label>
+                    <input type="number" step="0.01" min="0" id="stepAmount" class="form-control ctrl-input" value="0.10" placeholder="0.10">
+                </div>
+
+                <div class="d-flex align-items-center gap-2">
+                    <label class="mb-0 small fw-bold">Side</label>
+                    <select id="sideSelect" class="form-select ctrl-input">
+                        <option value="0">Sell (lower = top)</option>
+                        <option value="1">Buy (higher = top)</option>
+                    </select>
+                </div>
+
+                <button id="startBtn" class="btn btn-success fw-bold">
+                    <i class="bi bi-play-fill"></i> Start Beating
+                </button>
+                <button id="stopBtn" class="btn btn-danger fw-bold" disabled>
+                    <i class="bi bi-stop-fill"></i> Stop
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="row g-4">
-        <!-- My Advertisement Section -->
+
+        <!-- ============ MERCHANT A ============ -->
         <div class="col-md-6">
             <div class="card ads-card">
                 <div class="card-body">
-
-                    <h5 class="fw-bold mb-4">
-                        <i class="bi bi-megaphone me-1"></i> My Advertisements
+                    <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-person-badge me-1 text-primary"></i> Merchant A</span>
+                        <span id="badgeA" class="badge-copying d-none">Pushing</span>
                     </h5>
 
-                    <select class="form-select form-select-lg mb-4" id="adsSelect">
+                    <select class="form-select form-select-lg mb-3" id="adsSelectA">
                         <option value="">Loading Advertisements...</option>
                     </select>
-
-                    <input type="hidden" id="adId">
+                    <input type="hidden" id="adIdA">
 
                     <div class="border rounded p-3 bg-light">
-                        <p class="mb-2"><b>Pair:</b> <span id="pairText">---</span></p>
-                        <p class="mb-2"><b>My Current Price:</b> <span id="currentPrice" class="fw-bold text-primary">---</span></p>
-                        <p class="mb-2"><b>Min Limit:</b> <span id="minText">---</span></p>
-                        <p class="mb-2"><b>Max Limit:</b> <span id="maxText">---</span></p>
-                        <p class="mb-0"><b>Status:</b> <span id="statusText">---</span></p>
+                        <p class="mb-2"><b>Pair:</b> <span id="pairTextA">---</span></p>
+                        <p class="mb-2"><b>Current Price:</b> <span id="currentPriceA" class="fw-bold text-primary">---</span></p>
+                        <p class="mb-2"><b>Min Limit:</b> <span id="minTextA">---</span></p>
+                        <p class="mb-2"><b>Max Limit:</b> <span id="maxTextA">---</span></p>
+                        <p class="mb-0"><b>Status:</b> <span id="statusTextA">---</span></p>
                     </div>
-
                 </div>
             </div>
         </div>
 
-        <!-- Topper Copier Section -->
+        <!-- ============ MERCHANT B ============ -->
         <div class="col-md-6">
             <div class="card ads-card">
                 <div class="card-body">
-
-                    <h5 class="fw-bold mb-4 d-flex align-items-center justify-content-between">
-                        <span><i class="bi bi-robot me-1"></i> Top Merchant (Copier Target)</span>
-                        <span id="copierBadge" class="badge-copying d-none">Auto-Copier Active</span>
+                    <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-person-badge me-1 text-success"></i> Merchant B</span>
+                        <span id="badgeB" class="badge-copying d-none">Pushing</span>
                     </h5>
 
-                    <div class="form-control form-control-lg mb-4 bg-light d-flex align-items-center justify-content-between">
-                        <span class="text-muted">Target Merchant:</span>
-                        <strong id="topMerchantLabel" class="text-dark">Auto-Detecting #1 Merchant...</strong>
+                    <div class="row g-2 mb-2">
+                        <div class="col-12">
+                            <input type="text" id="apiKeyB" class="form-control form-control-sm" placeholder="Merchant B API Key">
+                        </div>
+                        <div class="col-12">
+                            <input type="text" id="apiSecretB" class="form-control form-control-sm" placeholder="Merchant B API Secret">
+                        </div>
+                        <div class="col-12">
+                            <input type="text" id="apiUrlB" class="form-control form-control-sm" placeholder="Merchant B API URL (same as A if shared)">
+                        </div>
                     </div>
+
+                    <button id="loadAdsB" class="btn btn-outline-success btn-sm w-100 mb-3">
+                        <i class="bi bi-arrow-repeat"></i> Load B's Advertisements
+                    </button>
+
+                    <select class="form-select form-select-lg mb-3" id="adsSelectB" disabled>
+                        <option value="">Load B's credentials first...</option>
+                    </select>
+                    <input type="hidden" id="adIdB">
 
                     <div class="border rounded p-3 bg-light">
-                        <p class="mb-2"><b>Top Merchant Name:</b> <span id="merchantName">---</span></p>
-                        <p class="mb-2"><b>Top Merchant Price:</b> <span id="merchantPrice" class="fw-bold text-success">---</span></p>
-                        <p class="mb-0"><b>Copier Engine Status:</b> <span id="trackingStatus" class="fw-bold text-secondary">Idle (Select Ad)</span></p>
+                        <p class="mb-2"><b>Pair:</b> <span id="pairTextB">---</span></p>
+                        <p class="mb-2"><b>Current Price:</b> <span id="currentPriceB" class="fw-bold text-success">---</span></p>
+                        <p class="mb-2"><b>Min Limit:</b> <span id="minTextB">---</span></p>
+                        <p class="mb-2"><b>Max Limit:</b> <span id="maxTextB">---</span></p>
+                        <p class="mb-0"><b>Status:</b> <span id="statusTextB">---</span></p>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- ============ MARKET / TOP LIST PANEL ============ -->
+    <div class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="card ads-card">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-bar-chart-line me-1"></i> Live Market Top List</span>
+                        <span id="liveBadge" class="badge-live d-none">LIVE</span>
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Merchant</th>
+                                    <th>Price</th>
+                                    <th>Available</th>
+                                </tr>
+                            </thead>
+                            <tbody id="topListBody">
+                                <tr><td colspan="4" class="text-center text-muted">Select ads and press Start.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p class="mt-3 mb-0"><b>Engine Status:</b> <span id="engineStatus" class="fw-bold text-secondary">Idle</span></p>
                 </div>
             </div>
         </div>
@@ -110,285 +208,362 @@
 @endsection
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', function () {
 
-        const API_URL = "{{ auth()->user()->api_url }}";
-        const API_KEY = "{{ auth()->user()->bybit_api_key }}";
-        const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
+    /* =====================================================================
+     |  CREDENTIALS
+     |  Merchant A = the logged-in user. Merchant B = extra inputs.
+     |  Only ONE credential set is used to READ the market (Merchant A).
+     ===================================================================== */
+    const A = {
+        url:    "{{ auth()->user()->api_url }}",
+        key:    "{{ auth()->user()->bybit_api_key }}",
+        secret: "{{ auth()->user()->bybit_api_secret }}",
+        ads: [],
+        ad: null,
+        updating: false
+    };
 
-        const adsSelect = document.getElementById('adsSelect');
+    const B = {
+        url:    '',
+        key:    '',
+        secret: '',
+        ads: [],
+        ad: null,
+        updating: false
+    };
 
-        let adsData = [];
-        let selectedToken = null;
-        let selectedCurrency = null;
-        let lastCopiedPrice = null;
-        let updatingAd = false;
-        let targetAdPrice = null;
-        let syncing = false;
+    /* =====================================================================
+     |  ENGINE STATE
+     ===================================================================== */
+    let running = false;
+    let syncing = false;
+    let activeIndex = 0;        // which merchant we are currently pushing to #1
+    let lastBeatPrice = null;   // last price we pushed, to avoid duplicate calls
 
-        /*
-        |--------------------------------------------------------------------------
-        | Toast Handler
-        |--------------------------------------------------------------------------
-        */
-        function toast(message, type = 'success') {
-            const t = document.getElementById('toast');
-            t.innerHTML = message;
-            t.className = `app-toast show ${type}`;
+    const $ = id => document.getElementById(id);
 
-            setTimeout(() => {
-                t.className = 'app-toast';
-            }, 3000);
+    /* =====================================================================
+     |  TOAST
+     ===================================================================== */
+    function toast(msg, type = 'success') {
+        const t = $('toast');
+        t.innerHTML = msg;
+        t.className = `app-toast show ${type}`;
+        setTimeout(() => t.className = 'app-toast', 3000);
+    }
+
+    /* =====================================================================
+     |  HELPERS
+     ===================================================================== */
+    function side() { return $('sideSelect').value; }            // '0' sell, '1' buy
+    function floor() { return parseFloat($('floorPrice').value) || 0; }
+    function step()  { return parseFloat($('stepAmount').value) || 0.10; }
+
+    // For SELL: top of list = LOWEST price -> to beat, go LOWER (topPrice - step)
+    // For BUY:  top of list = HIGHEST price -> to beat, go HIGHER (topPrice + step)
+    function beatPrice(topPrice) {
+        const s = step();
+        let p = (side() === '0') ? topPrice - s : topPrice + s;
+        // Clamp so we never go beyond the floor / ceiling the user set.
+        if (side() === '0') {
+            if (p < floor()) { p = floor(); }
+        } else {
+            if (floor() > 0 && p > floor()) { p = floor(); }
         }
+        return p;
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Load User Advertisements
-        |--------------------------------------------------------------------------
-        */
-        async function loadAds() {
-            try {
-                const res = await fetch(`${API_URL}/ads`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_key: API_KEY,
-                        api_secret: API_SECRET
-                    })
-                });
+    // Is `myPrice` already at (or past) the top compared to `topPrice`?
+    function isAtTop(myPrice, topPrice) {
+        if (myPrice == null || isNaN(myPrice)) return false;
+        return (side() === '0') ? myPrice <= topPrice : myPrice >= topPrice;
+    }
 
-                const data = await res.json();
-                adsData = data?.result?.items || [];
+    function merchant(i) { return i === 0 ? A : B; }
 
-                adsSelect.innerHTML = `<option value="">Select Advertisement to Copy</option>`;
+    function renderAd(m, prefix) {
+        if (!m.ad) {
+            $('pairText' + prefix).innerHTML = '---';
+            $('currentPrice' + prefix).innerHTML = '---';
+            $('minText' + prefix).innerHTML = '---';
+            $('maxText' + prefix).innerHTML = '---';
+            $('statusText' + prefix).innerHTML = '---';
+            return;
+        }
+        $('adId' + prefix).value = m.ad.id;
+        $('pairText' + prefix).innerHTML = `${m.ad.tokenId}/${m.ad.currencyId}`;
+        $('currentPrice' + prefix).innerHTML = m.ad.price;
+        $('minText' + prefix).innerHTML = m.ad.minAmount;
+        $('maxText' + prefix).innerHTML = m.ad.maxAmount;
+        $('statusText' + prefix).innerHTML = m.ad.status ?? 'Active';
+    }
 
-                adsData.forEach(ad => {
-                    adsSelect.innerHTML += ``
-                        + `<option value="${ad.id}">`
-                        + `${ad.tokenId}/${ad.currencyId} | Price: ${ad.price}`
-                        + `</option>`;
-                });
+    /* =====================================================================
+     |  LOAD ADS — per merchant
+     ===================================================================== */
+    async function loadAds(m, selectEl, label) {
+        try {
+            selectEl.innerHTML = `<option value="">Loading...</option>`;
+            const res = await fetch(`${m.url}/ads`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: m.key, api_secret: m.secret })
+            });
+            const data = await res.json();
+            m.ads = data?.result?.items || [];
+            selectEl.innerHTML = `<option value="">Select ${label} Advertisement</option>`;
+            m.ads.forEach(ad => {
+                selectEl.innerHTML += `<option value="${ad.id}">${ad.tokenId}/${ad.currencyId} | Price: ${ad.price}</option>`;
+            });
+        } catch (e) {
+            console.error(e);
+            toast(`Failed to load ${label} advertisements.`, 'error');
+        }
+    }
 
-            } catch (e) {
-                console.error(e);
-                toast('Failed to load advertisements.', 'error');
+    loadAds(A, $('adsSelectA'), 'A');
+
+    $('loadAdsB').addEventListener('click', () => {
+        B.key    = $('apiKeyB').value.trim();
+        B.secret = $('apiSecretB').value.trim();
+        B.url    = $('apiUrlB').value.trim() || A.url;
+        if (!B.key || !B.secret) {
+            toast('Enter Merchant B API key and secret.', 'error');
+            return;
+        }
+        $('adsSelectB').disabled = false;
+        loadAds(B, $('adsSelectB'), 'B');
+    });
+
+    /* =====================================================================
+     |  AD SELECTION
+     ===================================================================== */
+    function bindSelect(selectEl, m, prefix) {
+        selectEl.addEventListener('change', function () {
+            m.ad = m.ads.find(x => String(x.id) === String(this.value)) || null;
+            renderAd(m, prefix);
+        });
+    }
+    bindSelect($('adsSelectA'), A, 'A');
+    bindSelect($('adsSelectB'), B, 'B');
+
+    /* =====================================================================
+     |  UPDATE A SINGLE MERCHANT'S AD PRICE
+     ===================================================================== */
+    async function pushMerchantPrice(m, newPrice, prefix) {
+        if (!m.ad || m.updating) return;
+        const current = parseFloat(m.ad.price);
+        if (!isNaN(current) && current === newPrice) return; // nothing to do
+
+        m.updating = true;
+        const payload = { ...m.ad, price: String(newPrice), api_key: m.key, api_secret: m.secret };
+
+        try {
+            const res = await fetch(`${m.url}/update-ad`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await res.json();
+            if (res.ok && result.status !== false && !result.error) {
+                m.ad.price = newPrice;
+                $('currentPrice' + prefix).innerHTML = newPrice;
+            } else {
+                console.log(`Update ${prefix} error:`, result);
             }
+        } catch (e) {
+            console.error(`Update ${prefix} network error:`, e);
+        } finally {
+            m.updating = false;
         }
+    }
 
-        loadAds();
+    /* =====================================================================
+     |  RENDER TOP LIST
+     ===================================================================== */
+    function renderTopList(competitors) {
+        const body = $('topListBody');
+        if (!competitors || competitors.length === 0) {
+            body.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No competitors.</td></tr>`;
+            return;
+        }
+        body.innerHTML = competitors.map((c, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${c.nickName}</td>
+                <td><b>${c.price}</b></td>
+                <td>${c.balance ?? '---'}</td>
+            </tr>
+        `).join('');
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Advertisement Selection Change Listener
-        |--------------------------------------------------------------------------
-        */
-        adsSelect.addEventListener('change', async function () {
-            const ad = adsData.find(x => String(x.id) === String(this.value));
+    /* =====================================================================
+     |  LOG TOP MERCHANT (optional DB store)
+     ===================================================================== */
+    async function logTopMerchant(topMerchant) {
+        try {
+            await fetch("{{ route('dashboard.com.store') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+                body: JSON.stringify({
+                    merchant_id: topMerchant.id,
+                    username: topMerchant.nickName,
+                    price: topMerchant.price
+                })
+            });
+        } catch (e) { console.log('log failed', e); }
+    }
 
-            if (!ad) {
-                selectedToken = null;
-                selectedCurrency = null;
-                lastCopiedPrice = null;
+    /* =====================================================================
+     |  THE BEAT-TO-TOP ENGINE (leapfrog between A and B)
+     |
+     |  1. Read market top list using Merchant A's credentials (reader).
+     |  2. Compute beatPrice = topPrice +/- step, clamped to floor.
+     |  3. If the ACTIVE merchant is NOT at the top, push it to beatPrice.
+     |     Keep pushing (increment) each tick until it reaches the top.
+     |  4. When the active merchant reaches the top it "disappears" from the
+     |     competitor list (own ad not shown). At that point SWITCH active to
+     |     the OTHER merchant and push THAT one to beatPrice too — so the two
+     |     leapfrog each other and hold the top two slots.
+     |  5. Never push below the floor price (or above the ceiling for buy).
+     ===================================================================== */
+    async function tick() {
+        if (!running) return;
+        if (!A.ad || !B.ad) {
+            $('engineStatus').innerHTML = 'Select both merchants\' ads first.';
+            return;
+        }
+        if (syncing) return;
+        syncing = true;
 
-                document.getElementById('adId').value = '';
-                document.getElementById('pairText').innerHTML = '---';
-                document.getElementById('currentPrice').innerHTML = '---';
-                document.getElementById('minText').innerHTML = '---';
-                document.getElementById('maxText').innerHTML = '---';
-                document.getElementById('statusText').innerHTML = '---';
+        try {
+            // Use Merchant A (reader) to read the market for A's selected pair.
+            const res = await fetch(`${A.url}/analyze-market`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    api_key: A.key,
+                    api_secret: A.secret,
+                    tokenId: A.ad.tokenId,
+                    currencyId: A.ad.currencyId,
+                    side: side(),
+                    marginPct: 4
+                })
+            });
+            const data = await res.json();
 
-                document.getElementById('topMerchantLabel').innerHTML = 'Auto-Detecting #1 Merchant...';
-                document.getElementById('merchantName').innerHTML = '---';
-                document.getElementById('merchantPrice').innerHTML = '---';
-                document.getElementById('trackingStatus').innerHTML = 'Idle (Select Ad)';
-                document.getElementById('copierBadge').classList.add('d-none');
+            if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
+                $('engineStatus').innerHTML = 'No competitors found.';
+                syncing = false;
                 return;
             }
 
-            // Set global values for active Ad
-            selectedToken = ad.tokenId;
-            selectedCurrency = ad.currencyId;
-            lastCopiedPrice = null;
+            const competitors = data.top_10_competitors;
+            renderTopList(competitors);
 
-            document.getElementById('adId').value = ad.id;
-            document.getElementById('pairText').innerHTML = `${ad.tokenId}/${ad.currencyId}`;
-            document.getElementById('currentPrice').innerHTML = ad.price;
-            document.getElementById('minText').innerHTML = ad.minAmount;
-            document.getElementById('maxText').innerHTML = ad.maxAmount;
-            document.getElementById('statusText').innerHTML = ad.status ?? 'Active';
+            const topMerchant = competitors[0];
+            const topPrice = parseFloat(topMerchant.price);
+            if (isNaN(topPrice)) { syncing = false; return; }
 
-            document.getElementById('trackingStatus').innerHTML = 'Connecting to Market...';
-            document.getElementById('copierBadge').classList.remove('d-none');
+            await logTopMerchant(topMerchant);
 
-            toast(`Selected ${ad.tokenId}/${ad.currencyId}. Initializing Topper Copier...`);
+            const active = merchant(activeIndex);
+            const other   = merchant(1 - activeIndex);
+            const activePrefix = activeIndex === 0 ? 'A' : 'B';
+            const otherPrefix   = activeIndex === 0 ? 'B' : 'A';
 
-            // Execute immediate fetch & sync
-            await syncTopperCopier();
-        });
+            const activePrice = parseFloat(active.ad.price);
+            const target = beatPrice(topPrice);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Fetch Top Merchant & Auto-Update Ad (0.2-Second Engine)
-        |--------------------------------------------------------------------------
-        */
-        async function syncTopperCopier() {
-            if (!selectedToken || !selectedCurrency) return;
+            // Floor protection: if we can't beat any further, hold and switch.
+            const floorHit = (side() === '0')
+                ? (target <= floor() && activePrice <= floor())
+                : (floor() > 0 && target >= floor() && activePrice >= floor());
 
-            const adId = document.getElementById('adId').value;
-            if (!adId) return;
+            if (isAtTop(activePrice, topPrice)) {
+                // Active merchant IS at the top (it has "disappeared" from the
+                // competitor list as far as our own price tracking is concerned).
+                // -> Switch: reduce / re-update the OTHER merchant to beatPrice,
+                //    and re-update this one too so both stay at the top.
+                $('badge' + activePrefix).classList.add('d-none');
+                $('badge' + otherPrefix).classList.remove('d-none');
 
-            // Guard: prevent overlapping syncs — wait for the previous cycle to finish
-            if (syncing) return;
-            syncing = true;
+                $('engineStatus').innerHTML =
+                    `${activePrefix} at top (${activePrice}). Leapfrogging -> pushing ${otherPrefix} to ${target}`;
 
-            try {
-                // Fetch Top Market Competitors
-                const res = await fetch(`${API_URL}/analyze-market`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_key: API_KEY,
-                        api_secret: API_SECRET,
-                        tokenId: selectedToken,
-                        currencyId: selectedCurrency,
-                        side: '0',
-                        marginPct: 4
-                    })
-                });
+                await pushMerchantPrice(other, target, otherPrefix);
+                // keep the active one glued to the top as well
+                await pushMerchantPrice(active, target, activePrefix);
 
-                const data = await res.json();
+                activeIndex = 1 - activeIndex;
+                lastBeatPrice = target;
 
-                if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
-                    document.getElementById('trackingStatus').innerHTML = 'No competitors found';
-                    return;
-                }
+            } else if (floorHit) {
+                // We've reached the fixed floor — do not go beyond the market.
+                $('engineStatus').innerHTML =
+                    `Floor reached (${floor()}). Holding both merchants. No further undercut.`;
+                $('badgeA').classList.add('d-none');
+                $('badgeB').classList.add('d-none');
+                await pushMerchantPrice(active, floor(), activePrefix);
+                await pushMerchantPrice(other, floor(), otherPrefix);
 
-                // Extract #1 Top Merchant
-                const topMerchant = data.top_10_competitors[0];
-                const topPrice = parseFloat(topMerchant.price);
+            } else {
+                // Active merchant is NOT at the top -> increment (beat) toward #1.
+                $('badge' + activePrefix).classList.remove('d-none');
+                $('badge' + otherPrefix).classList.add('d-none');
 
-                if (isNaN(topPrice)) return;
+                $('engineStatus').innerHTML =
+                    `${activePrefix} not at top (${activePrice} vs #1 ${topPrice}). Beating to ${target}`;
 
-                // 1. ALWAYS update the display to show the current #1 Merchant
-                document.getElementById('topMerchantLabel').innerHTML = `#1 ${topMerchant.nickName} (${topPrice})`;
-                document.getElementById('merchantName').innerHTML = topMerchant.nickName;
-                document.getElementById('merchantPrice').innerHTML = topPrice;
-
-                // Find currently selected local ad object
-                const currentAd = adsData.find(x => String(x.id) === String(adId));
-                const currentAdPrice = currentAd ? parseFloat(currentAd.price) : null;
-
-                // 2. CHECK PRICE: If top price is identical to our ad price or last copied price, STOP HERE.
-                if (topPrice === currentAdPrice || topPrice === lastCopiedPrice) {
-                    document.getElementById('trackingStatus').innerHTML = `Synced with #1 (${topPrice})`;
-                    return;
-                }
-
-                // 3. EXECUTE ONLY WHEN THERE IS A NEW PRICE AT THE TOP
-                document.getElementById('trackingStatus').innerHTML = `New top price (${topPrice}) detected! Updating...`;
-
-                // Save merchant history to DB only on price change
-                try {
-                    await fetch("{{ route('dashboard.com.store') }}", {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify({
-                            merchant_id: topMerchant.id,
-                            username: topMerchant.nickName,
-                            price: topPrice
-                        })
-                    });
-                } catch (err) {
-                    console.log('Failed to log merchant history:', err);
-                }
-
-                // Send API request to update your Advertisement price
-                await updateAdPrice(topPrice);
-
-            } catch (e) {
-                console.error('Topper Copier sync error:', e);
-                document.getElementById('trackingStatus').innerHTML = 'Sync Error (Retrying...)';
-            } finally {
-                syncing = false;
+                await pushMerchantPrice(active, target, activePrefix);
+                lastBeatPrice = target;
             }
+
+        } catch (e) {
+            console.error('Engine tick error:', e);
+            $('engineStatus').innerHTML = 'Sync error (retrying...)';
+        } finally {
+            syncing = false;
         }
+    }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Update Advertisement API Call (With Auto Retry - 0.2s)
-        |--------------------------------------------------------------------------
-        */
-        async function updateAdPrice(newPrice) {
-            targetAdPrice = newPrice;
+    /* =====================================================================
+     |  START / STOP
+     ===================================================================== */
+    let loopId = null;
 
-            if (updatingAd) return;
-            updatingAd = true;
+    $('startBtn').addEventListener('click', () => {
+        if (!A.ad) { toast('Select Merchant A\'s ad.', 'error'); return; }
+        if (!B.ad) { toast('Select Merchant B\'s ad.', 'error'); return; }
+        if (!floor() && floor() !== 0) { toast('Set a floor price.', 'error'); return; }
+        if (!B.key || !B.secret) { toast('Load Merchant B credentials first.', 'error'); return; }
 
-            while (true) {
-                const adId = document.getElementById('adId').value;
-                const ad = adsData.find(x => String(x.id) === String(adId));
+        running = true;
+        activeIndex = 0;
+        lastBeatPrice = null;
+        $('startBtn').disabled = true;
+        $('stopBtn').disabled = false;
+        $('liveBadge').classList.remove('d-none');
+        $('engineStatus').innerHTML = 'Engine started.';
+        toast('Beat-to-Top engine started.', 'info');
 
-                if (!ad) {
-                    updatingAd = false;
-                    toast('No Ad selected.', 'error');
-                    return;
-                }
-
-                const priceToUpdate = targetAdPrice;
-
-                const payload = {
-                    ...ad,
-                    price: String(priceToUpdate),
-                    api_key: API_KEY,
-                    api_secret: API_SECRET
-                };
-
-                try {
-                    const res = await fetch(`${API_URL}/update-ad`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const result = await res.json();
-
-                    if (res.ok && result.status !== false && !result.error) {
-                        ad.price = priceToUpdate;
-                        lastCopiedPrice = priceToUpdate;
-                        document.getElementById('currentPrice').innerHTML = priceToUpdate;
-                        document.getElementById('trackingStatus').innerHTML = `Successfully Copied (${priceToUpdate})`;
-                        toast(`Ad price updated to Top Merchant price (${priceToUpdate})`);
-
-                        if (targetAdPrice === priceToUpdate) break;
-                    } else {
-                        console.log('Backend Error:', result);
-                        toast('Retrying price update in 0.2s...', 'error');
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                    }
-
-                } catch (e) {
-                    console.error('Network Error:', e);
-                    toast('Network issue. Retrying in 0.2s...', 'error');
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-            }
-
-            updatingAd = false;
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | 0.2-Second Topper Copier Loop (200ms)
-        |--------------------------------------------------------------------------
-        */
-        setInterval(() => {
-            if (selectedToken && selectedCurrency) {
-                syncTopperCopier();
-            }
-        }, 200);
-
+        // immediate first tick, then every 800ms
+        tick();
+        loopId = setInterval(tick, 800);
     });
+
+    $('stopBtn').addEventListener('click', () => {
+        running = false;
+        if (loopId) { clearInterval(loopId); loopId = null; }
+        $('startBtn').disabled = false;
+        $('stopBtn').disabled = true;
+        $('liveBadge').classList.add('d-none');
+        $('badgeA').classList.add('d-none');
+        $('badgeB').classList.add('d-none');
+        $('engineStatus').innerHTML = 'Engine stopped.';
+        toast('Engine stopped.', 'info');
+    });
+
+});
 </script>
