@@ -35,6 +35,11 @@
         <i class="bi bi-person-badge me-2"></i> Topper Copier
     </a>
 
+    <a class="nav-link {{ request()->is('/dashboard/toppercopier2*') ? 'active' : '' }}"
+        href="/dashboard/toppercopier2">
+        <i class="bi bi-person-badge me-2"></i> Topper Copier 2
+    </a>
+
     @auth
         @if(auth()->user()->role === 'admin')
             <a class="nav-link {{ request()->is('dashboard/users*') ? 'active' : '' }}"

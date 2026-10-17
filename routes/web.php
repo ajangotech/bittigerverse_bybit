@@ -49,6 +49,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard/toppercopier', [CompetitorController::class, 'toppercopier'])->name('dashboard.toppercopier');
 
+    Route::get('/dashboard/toppercopier2', [CompetitorController::class, 'toppercopier2'])->name('dashboard.toppercopier2');
+
     Route::post('/dashboard/change-password', [DashboardController::class, 'changePassword'])->middleware('auth');
 
     Route::post('/logout', [DashboardController::class, 'logout'])->name('logout');
