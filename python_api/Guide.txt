@@ -45,3 +45,5 @@ sudo supervisorctl restart bittiger-python-api
 sudo supervisorctl stop bittiger-python-api
 
 sudo supervisorctl start bittiger-python-api
+
+sudo supervisorctl stop

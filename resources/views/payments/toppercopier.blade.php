@@ -6,65 +6,21 @@
 
 <style>
     .app-toast {
-        position: fixed;
-        right: 30px;
-        bottom: 30px;
-        z-index: 9999;
-        padding: 15px 20px;
-        border-radius: 10px;
-        color: #fff;
-        opacity: 0;
-        transition: .3s;
-        background: #111;
+        position: fixed; right: 30px; bottom: 30px; z-index: 9999;
+        padding: 15px 20px; border-radius: 10px; color: #fff;
+        opacity: 0; transition: .3s; background: #111;
     }
     .app-toast.show { opacity: 1; }
     .app-toast.success { background: #E37216; }
     .app-toast.error { background: #dc3545; }
     .app-toast.info { background: #0d6efd; }
 
-    .ads-card {
-        border: none;
-        border-radius: 18px;
-        box-shadow: 0 5px 20px rgba(0, 0, 0, .08);
-    }
-    .price-box {
-        font-size: 30px;
-        font-weight: bold;
-        color: #E37216;
-    }
-    .badge-copying {
-        background-color: #198754;
-        color: white;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-    }
-    .badge-live {
-        background-color: #dc3545;
-        color: white;
-        padding: 3px 8px;
-        border-radius: 6px;
-        font-size: 12px;
-        animation: pulse 1s infinite;
-    }
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: .5; }
-    }
-    .merchant-tab {
-        cursor: pointer;
-        padding: 10px 18px;
-        border-bottom: 3px solid transparent;
-        font-weight: 600;
-        color: #888;
-    }
-    .merchant-tab.active {
-        color: #E37216;
-        border-bottom-color: #E37216;
-    }
-    .ctrl-input {
-        max-width: 130px;
-    }
+    .ads-card { border: none; border-radius: 18px; box-shadow: 0 5px 20px rgba(0,0,0,.08); }
+    .badge-copying { background-color: #198754; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
+    .badge-live { background-color: #dc3545; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; animation: pulse 1s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .ctrl-input { max-width: 150px; }
+    .merchant-head { font-weight: 700; }
 </style>
 
 <div class="container-fluid py-4">
@@ -72,21 +28,17 @@
     <!-- ============ GLOBAL CONTROL BAR ============ -->
     <div class="card ads-card mb-4">
         <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <h5 class="fw-bold mb-0">
-                <i class="bi bi-trophy me-1"></i> Beat-To-Top Engine (Two-Merchant Leapfrog)
-            </h5>
+            <h5 class="fw-bold mb-0"><i class="bi bi-trophy me-1"></i> Beat-To-Top Engine (Two-Merchant Leapfrog)</h5>
 
             <div class="d-flex flex-wrap align-items-center gap-3">
                 <div class="d-flex align-items-center gap-2">
                     <label class="mb-0 small fw-bold">Floor Price</label>
                     <input type="number" step="0.01" min="0" id="floorPrice" class="form-control ctrl-input" placeholder="e.g. 95000">
                 </div>
-
                 <div class="d-flex align-items-center gap-2">
                     <label class="mb-0 small fw-bold">Step</label>
-                    <input type="number" step="0.01" min="0" id="stepAmount" class="form-control ctrl-input" value="0.10" placeholder="0.10">
+                    <input type="number" step="0.01" min="0" id="stepAmount" class="form-control ctrl-input" value="0.10">
                 </div>
-
                 <div class="d-flex align-items-center gap-2">
                     <label class="mb-0 small fw-bold">Side</label>
                     <select id="sideSelect" class="form-select ctrl-input">
@@ -94,13 +46,8 @@
                         <option value="1">Buy (higher = top)</option>
                     </select>
                 </div>
-
-                <button id="startBtn" class="btn btn-success fw-bold">
-                    <i class="bi bi-play-fill"></i> Start Beating
-                </button>
-                <button id="stopBtn" class="btn btn-danger fw-bold" disabled>
-                    <i class="bi bi-stop-fill"></i> Stop
-                </button>
+                <button id="startBtn" class="btn btn-success fw-bold"><i class="bi bi-play-fill"></i> Start Beating</button>
+                <button id="stopBtn" class="btn btn-danger fw-bold" disabled><i class="bi bi-stop-fill"></i> Stop</button>
             </div>
         </div>
     </div>
@@ -112,12 +59,19 @@
             <div class="card ads-card">
                 <div class="card-body">
                     <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
-                        <span><i class="bi bi-person-badge me-1 text-primary"></i> Merchant A</span>
+                        <span class="merchant-head"><i class="bi bi-person-badge me-1 text-primary"></i> Merchant A</span>
                         <span id="badgeA" class="badge-copying d-none">Pushing</span>
                     </h5>
 
-                    <select class="form-select form-select-lg mb-3" id="adsSelectA">
-                        <option value="">Loading Advertisements...</option>
+                    <select class="form-select form-select-lg mb-2" id="userSelectA">
+                        <option value="">Select User (Merchant A)...</option>
+                        @foreach($users as $u)
+                            <option value="{{ $u->id }}">{{ $u->first_name }} {{ $u->last_name }} ({{ $u->email }})</option>
+                        @endforeach
+                    </select>
+
+                    <select class="form-select form-select-lg mb-3" id="adsSelectA" disabled>
+                        <option value="">Select user first...</option>
                     </select>
                     <input type="hidden" id="adIdA">
 
@@ -137,28 +91,19 @@
             <div class="card ads-card">
                 <div class="card-body">
                     <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
-                        <span><i class="bi bi-person-badge me-1 text-success"></i> Merchant B</span>
+                        <span class="merchant-head"><i class="bi bi-person-badge me-1 text-success"></i> Merchant B</span>
                         <span id="badgeB" class="badge-copying d-none">Pushing</span>
                     </h5>
 
-                    <div class="row g-2 mb-2">
-                        <div class="col-12">
-                            <input type="text" id="apiKeyB" class="form-control form-control-sm" placeholder="Merchant B API Key">
-                        </div>
-                        <div class="col-12">
-                            <input type="text" id="apiSecretB" class="form-control form-control-sm" placeholder="Merchant B API Secret">
-                        </div>
-                        <div class="col-12">
-                            <input type="text" id="apiUrlB" class="form-control form-control-sm" placeholder="Merchant B API URL (same as A if shared)">
-                        </div>
-                    </div>
-
-                    <button id="loadAdsB" class="btn btn-outline-success btn-sm w-100 mb-3">
-                        <i class="bi bi-arrow-repeat"></i> Load B's Advertisements
-                    </button>
+                    <select class="form-select form-select-lg mb-2" id="userSelectB">
+                        <option value="">Select User (Merchant B)...</option>
+                        @foreach($users as $u)
+                            <option value="{{ $u->id }}">{{ $u->first_name }} {{ $u->last_name }} ({{ $u->email }})</option>
+                        @endforeach
+                    </select>
 
                     <select class="form-select form-select-lg mb-3" id="adsSelectB" disabled>
-                        <option value="">Load B's credentials first...</option>
+                        <option value="">Select user first...</option>
                     </select>
                     <input type="hidden" id="adIdB">
 
@@ -174,7 +119,7 @@
         </div>
     </div>
 
-    <!-- ============ MARKET / TOP LIST PANEL ============ -->
+    <!-- ============ LIVE MARKET TOP LIST ============ -->
     <div class="row g-4 mt-1">
         <div class="col-12">
             <div class="card ads-card">
@@ -186,15 +131,10 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle mb-0">
                             <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Merchant</th>
-                                    <th>Price</th>
-                                    <th>Available</th>
-                                </tr>
+                                <tr><th>#</th><th>Merchant</th><th>Price</th><th>Available</th></tr>
                             </thead>
                             <tbody id="topListBody">
-                                <tr><td colspan="4" class="text-center text-muted">Select ads and press Start.</td></tr>
+                                <tr><td colspan="4" class="text-center text-muted">Select both users & ads, then press Start.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -211,35 +151,35 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     /* =====================================================================
-     |  CREDENTIALS
-     |  Merchant A = the logged-in user. Merchant B = extra inputs.
-     |  Only ONE credential set is used to READ the market (Merchant A).
+     |  USER CREDENTIAL MAP (injected from $users — same pattern as the
+     |  original auth()->user() usage, now extended to every user).
      ===================================================================== */
-    const A = {
-        url:    "{{ auth()->user()->api_url }}",
-        key:    "{{ auth()->user()->bybit_api_key }}",
-        secret: "{{ auth()->user()->bybit_api_secret }}",
-        ads: [],
-        ad: null,
-        updating: false
+    const USER_MAP = {
+        @foreach($users as $u)
+            "{{ $u->id }}": {
+                url:    "{{ $u->api_url }}",
+                key:    "{{ $u->bybit_api_key }}",
+                secret: "{{ $u->bybit_api_secret }}"
+            },
+        @endforeach
     };
 
-    const B = {
-        url:    '',
-        key:    '',
-        secret: '',
-        ads: [],
-        ad: null,
-        updating: false
-    };
+    /* =====================================================================
+     |  MERCHANT STATE
+     ===================================================================== */
+    function newMerchant() {
+        return { url: '', key: '', secret: '', ads: [], ad: null, updating: false };
+    }
+    const A = newMerchant();
+    const B = newMerchant();
 
     /* =====================================================================
      |  ENGINE STATE
      ===================================================================== */
     let running = false;
     let syncing = false;
-    let activeIndex = 0;        // which merchant we are currently pushing to #1
-    let lastBeatPrice = null;   // last price we pushed, to avoid duplicate calls
+    let activeIndex = 0;        // 0 = A, 1 = B (the one we are currently pushing)
+    let lastBeatPrice = null;
 
     const $ = id => document.getElementById(id);
 
@@ -256,53 +196,53 @@ document.addEventListener('DOMContentLoaded', function () {
     /* =====================================================================
      |  HELPERS
      ===================================================================== */
-    function side() { return $('sideSelect').value; }            // '0' sell, '1' buy
+    function side()  { return $('sideSelect').value; }
     function floor() { return parseFloat($('floorPrice').value) || 0; }
     function step()  { return parseFloat($('stepAmount').value) || 0.10; }
 
-    // For SELL: top of list = LOWEST price -> to beat, go LOWER (topPrice - step)
-    // For BUY:  top of list = HIGHEST price -> to beat, go HIGHER (topPrice + step)
+    // Beat price = top price +/- step, clamped to the floor so neither
+    // merchant ever crosses the fixed market boundary the user set.
     function beatPrice(topPrice) {
         const s = step();
         let p = (side() === '0') ? topPrice - s : topPrice + s;
-        // Clamp so we never go beyond the floor / ceiling the user set.
         if (side() === '0') {
-            if (p < floor()) { p = floor(); }
+            if (floor() > 0 && p < floor()) p = floor();
         } else {
-            if (floor() > 0 && p > floor()) { p = floor(); }
+            if (floor() > 0 && p > floor()) p = floor();
         }
         return p;
     }
 
-    // Is `myPrice` already at (or past) the top compared to `topPrice`?
     function isAtTop(myPrice, topPrice) {
         if (myPrice == null || isNaN(myPrice)) return false;
         return (side() === '0') ? myPrice <= topPrice : myPrice >= topPrice;
     }
 
     function merchant(i) { return i === 0 ? A : B; }
+    function prefix(i)   { return i === 0 ? 'A' : 'B'; }
 
-    function renderAd(m, prefix) {
+    function renderAd(m, p) {
         if (!m.ad) {
-            $('pairText' + prefix).innerHTML = '---';
-            $('currentPrice' + prefix).innerHTML = '---';
-            $('minText' + prefix).innerHTML = '---';
-            $('maxText' + prefix).innerHTML = '---';
-            $('statusText' + prefix).innerHTML = '---';
+            $('pairText'+p).innerHTML = '---';
+            $('currentPrice'+p).innerHTML = '---';
+            $('minText'+p).innerHTML = '---';
+            $('maxText'+p).innerHTML = '---';
+            $('statusText'+p).innerHTML = '---';
             return;
         }
-        $('adId' + prefix).value = m.ad.id;
-        $('pairText' + prefix).innerHTML = `${m.ad.tokenId}/${m.ad.currencyId}`;
-        $('currentPrice' + prefix).innerHTML = m.ad.price;
-        $('minText' + prefix).innerHTML = m.ad.minAmount;
-        $('maxText' + prefix).innerHTML = m.ad.maxAmount;
-        $('statusText' + prefix).innerHTML = m.ad.status ?? 'Active';
+        $('adId'+p).value = m.ad.id;
+        $('pairText'+p).innerHTML = `${m.ad.tokenId}/${m.ad.currencyId}`;
+        $('currentPrice'+p).innerHTML = m.ad.price;
+        $('minText'+p).innerHTML = m.ad.minAmount;
+        $('maxText'+p).innerHTML = m.ad.maxAmount;
+        $('statusText'+p).innerHTML = m.ad.status ?? 'Active';
     }
 
     /* =====================================================================
-     |  LOAD ADS — per merchant
+     |  LOAD ADS for a merchant (from their own credentials)
      ===================================================================== */
     async function loadAds(m, selectEl, label) {
+        if (!m.key || !m.secret) { toast(`Select ${label} user first.`, 'error'); return; }
         try {
             selectEl.innerHTML = `<option value="">Loading...</option>`;
             const res = await fetch(`${m.url}/ads`, {
@@ -322,39 +262,47 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    loadAds(A, $('adsSelectA'), 'A');
-
-    $('loadAdsB').addEventListener('click', () => {
-        B.key    = $('apiKeyB').value.trim();
-        B.secret = $('apiSecretB').value.trim();
-        B.url    = $('apiUrlB').value.trim() || A.url;
-        if (!B.key || !B.secret) {
-            toast('Enter Merchant B API key and secret.', 'error');
-            return;
-        }
-        $('adsSelectB').disabled = false;
-        loadAds(B, $('adsSelectB'), 'B');
-    });
-
     /* =====================================================================
-     |  AD SELECTION
+     |  USER SELECT BINDING
      ===================================================================== */
-    function bindSelect(selectEl, m, prefix) {
-        selectEl.addEventListener('change', function () {
-            m.ad = m.ads.find(x => String(x.id) === String(this.value)) || null;
-            renderAd(m, prefix);
+    function bindUserSelect(sel, m, adsSel, label) {
+        sel.addEventListener('change', function () {
+            const creds = USER_MAP[this.value];
+            if (!creds) {
+                m.url = m.key = m.secret = '';
+                m.ad = null; m.ads = [];
+                adsSel.disabled = true;
+                adsSel.innerHTML = `<option value="">Select user first...</option>`;
+                renderAd(m, label === 'A' ? 'A' : 'B');
+                return;
+            }
+            m.url = creds.url; m.key = creds.key; m.secret = creds.secret;
+            adsSel.disabled = false;
+            loadAds(m, adsSel, label);
         });
     }
-    bindSelect($('adsSelectA'), A, 'A');
-    bindSelect($('adsSelectB'), B, 'B');
+    bindUserSelect($('userSelectA'), A, $('adsSelectA'), 'A');
+    bindUserSelect($('userSelectB'), B, $('adsSelectB'), 'B');
 
     /* =====================================================================
-     |  UPDATE A SINGLE MERCHANT'S AD PRICE
+     |  AD SELECT BINDING
      ===================================================================== */
-    async function pushMerchantPrice(m, newPrice, prefix) {
-        if (!m.ad || m.updating) return;
+    function bindAdSelect(sel, m, p) {
+        sel.addEventListener('change', function () {
+            m.ad = m.ads.find(x => String(x.id) === String(this.value)) || null;
+            renderAd(m, p);
+        });
+    }
+    bindAdSelect($('adsSelectA'), A, 'A');
+    bindAdSelect($('adsSelectB'), B, 'B');
+
+    /* =====================================================================
+     |  PUSH A PRICE UPDATE (single attempt, returns true on success)
+     ===================================================================== */
+    async function pushMerchantPrice(m, newPrice, p) {
+        if (!m.ad) return false;
         const current = parseFloat(m.ad.price);
-        if (!isNaN(current) && current === newPrice) return; // nothing to do
+        if (!isNaN(current) && current === newPrice) return true;
 
         m.updating = true;
         const payload = { ...m.ad, price: String(newPrice), api_key: m.key, api_secret: m.secret };
@@ -368,12 +316,14 @@ document.addEventListener('DOMContentLoaded', function () {
             const result = await res.json();
             if (res.ok && result.status !== false && !result.error) {
                 m.ad.price = newPrice;
-                $('currentPrice' + prefix).innerHTML = newPrice;
-            } else {
-                console.log(`Update ${prefix} error:`, result);
+                $('currentPrice'+p).innerHTML = newPrice;
+                return true;
             }
+            console.log(`Update ${p} error:`, result);
+            return false;
         } catch (e) {
-            console.error(`Update ${prefix} network error:`, e);
+            console.error(`Update ${p} network error:`, e);
+            return false;
         } finally {
             m.updating = false;
         }
@@ -389,12 +339,7 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
         body.innerHTML = competitors.map((c, i) => `
-            <tr>
-                <td>${i + 1}</td>
-                <td>${c.nickName}</td>
-                <td><b>${c.price}</b></td>
-                <td>${c.balance ?? '---'}</td>
-            </tr>
+            <tr><td>${i+1}</td><td>${c.nickName}</td><td><b>${c.price}</b></td><td>${c.balance ?? '---'}</td></tr>
         `).join('');
     }
 
@@ -416,17 +361,17 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* =====================================================================
-     |  THE BEAT-TO-TOP ENGINE (leapfrog between A and B)
+     |  BEAT-TO-TOP ENGINE — continuous leapfrog
      |
-     |  1. Read market top list using Merchant A's credentials (reader).
-     |  2. Compute beatPrice = topPrice +/- step, clamped to floor.
-     |  3. If the ACTIVE merchant is NOT at the top, push it to beatPrice.
-     |     Keep pushing (increment) each tick until it reaches the top.
-     |  4. When the active merchant reaches the top it "disappears" from the
-     |     competitor list (own ad not shown). At that point SWITCH active to
-     |     the OTHER merchant and push THAT one to beatPrice too — so the two
-     |     leapfrog each other and hold the top two slots.
-     |  5. Never push below the floor price (or above the ceiling for buy).
+     |  Reader = Merchant A's credentials (single reader, as requested).
+     |  1. Read market top list.
+     |  2. target = beatPrice(topPrice).
+     |  3. If active merchant NOT at top -> push it to target. Keep ticking.
+     |  4. When active reaches top (disappears from competitor list as #1):
+     |     - SWITCH active to the other merchant.
+     |     - Push the OTHER merchant to target (so it now takes #1).
+     |     - Re-glue the first one at target too (both compete at same price).
+     |  5. Floor hit -> hold both, no further undercut.
      ===================================================================== */
     async function tick() {
         if (!running) return;
@@ -438,7 +383,6 @@ document.addEventListener('DOMContentLoaded', function () {
         syncing = true;
 
         try {
-            // Use Merchant A (reader) to read the market for A's selected pair.
             const res = await fetch(`${A.url}/analyze-market`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -468,55 +412,49 @@ document.addEventListener('DOMContentLoaded', function () {
 
             await logTopMerchant(topMerchant);
 
-            const active = merchant(activeIndex);
-            const other   = merchant(1 - activeIndex);
-            const activePrefix = activeIndex === 0 ? 'A' : 'B';
-            const otherPrefix   = activeIndex === 0 ? 'B' : 'A';
+            const ai = activeIndex;
+            const active = merchant(ai);
+            const other  = merchant(1 - ai);
+            const ap = prefix(ai);
+            const op = prefix(1 - ai);
 
             const activePrice = parseFloat(active.ad.price);
             const target = beatPrice(topPrice);
 
-            // Floor protection: if we can't beat any further, hold and switch.
             const floorHit = (side() === '0')
-                ? (target <= floor() && activePrice <= floor())
+                ? (floor() > 0 && target <= floor() && activePrice <= floor())
                 : (floor() > 0 && target >= floor() && activePrice >= floor());
 
-            if (isAtTop(activePrice, topPrice)) {
-                // Active merchant IS at the top (it has "disappeared" from the
-                // competitor list as far as our own price tracking is concerned).
-                // -> Switch: reduce / re-update the OTHER merchant to beatPrice,
-                //    and re-update this one too so both stay at the top.
-                $('badge' + activePrefix).classList.add('d-none');
-                $('badge' + otherPrefix).classList.remove('d-none');
-
-                $('engineStatus').innerHTML =
-                    `${activePrefix} at top (${activePrice}). Leapfrogging -> pushing ${otherPrefix} to ${target}`;
-
-                await pushMerchantPrice(other, target, otherPrefix);
-                // keep the active one glued to the top as well
-                await pushMerchantPrice(active, target, activePrefix);
-
-                activeIndex = 1 - activeIndex;
-                lastBeatPrice = target;
-
-            } else if (floorHit) {
-                // We've reached the fixed floor — do not go beyond the market.
-                $('engineStatus').innerHTML =
-                    `Floor reached (${floor()}). Holding both merchants. No further undercut.`;
+            if (floorHit) {
+                $('engineStatus').innerHTML = `Floor reached (${floor()}). Holding both merchants.`;
                 $('badgeA').classList.add('d-none');
                 $('badgeB').classList.add('d-none');
-                await pushMerchantPrice(active, floor(), activePrefix);
-                await pushMerchantPrice(other, floor(), otherPrefix);
+                await pushMerchantPrice(active, floor(), ap);
+                await pushMerchantPrice(other, floor(), op);
+                lastBeatPrice = floor();
+
+            } else if (isAtTop(activePrice, topPrice)) {
+                // Active merchant IS at the top -> it "disappeared" from the
+                // competitor list as the #1. Leapfrog: switch to the other
+                // merchant and push it to target, while re-gluing this one so
+                // both compete at the same price and hold the top slots.
+                $('badge'+ap).classList.add('d-none');
+                $('badge'+op).classList.remove('d-none');
+                $('engineStatus').innerHTML =
+                    `${ap} at top (${activePrice}). Leapfrog -> pushing ${op} to ${target}, re-gluing ${ap}.`;
+
+                await pushMerchantPrice(other, target, op);
+                await pushMerchantPrice(active, target, ap);
+                activeIndex = 1 - ai;
+                lastBeatPrice = target;
 
             } else {
-                // Active merchant is NOT at the top -> increment (beat) toward #1.
-                $('badge' + activePrefix).classList.remove('d-none');
-                $('badge' + otherPrefix).classList.add('d-none');
-
+                // Active merchant NOT at top -> increment toward #1.
+                $('badge'+ap).classList.remove('d-none');
+                $('badge'+op).classList.add('d-none');
                 $('engineStatus').innerHTML =
-                    `${activePrefix} not at top (${activePrice} vs #1 ${topPrice}). Beating to ${target}`;
-
-                await pushMerchantPrice(active, target, activePrefix);
+                    `${ap} not at top (${activePrice} vs #1 ${topPrice}). Beating to ${target}`;
+                await pushMerchantPrice(active, target, ap);
                 lastBeatPrice = target;
             }
 
@@ -536,8 +474,10 @@ document.addEventListener('DOMContentLoaded', function () {
     $('startBtn').addEventListener('click', () => {
         if (!A.ad) { toast('Select Merchant A\'s ad.', 'error'); return; }
         if (!B.ad) { toast('Select Merchant B\'s ad.', 'error'); return; }
-        if (!floor() && floor() !== 0) { toast('Set a floor price.', 'error'); return; }
-        if (!B.key || !B.secret) { toast('Load Merchant B credentials first.', 'error'); return; }
+        if (!$('floorPrice').value) { toast('Set a floor price.', 'error'); return; }
+        if (A.ad.tokenId !== B.ad.tokenId || A.ad.currencyId !== B.ad.currencyId) {
+            toast('Both merchants must use the SAME pair.', 'error'); return;
+        }
 
         running = true;
         activeIndex = 0;
@@ -548,7 +488,6 @@ document.addEventListener('DOMContentLoaded', function () {
         $('engineStatus').innerHTML = 'Engine started.';
         toast('Beat-to-Top engine started.', 'info');
 
-        // immediate first tick, then every 800ms
         tick();
         loopId = setInterval(tick, 800);
     });
@@ -564,6 +503,5 @@ document.addEventListener('DOMContentLoaded', function () {
         $('engineStatus').innerHTML = 'Engine stopped.';
         toast('Engine stopped.', 'info');
     });
-
 });
 </script>

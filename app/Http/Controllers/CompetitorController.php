@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Competitor;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class CompetitorController extends Controller
@@ -44,7 +45,8 @@ class CompetitorController extends Controller
 
     public function toppercopier()
     {
-        return view('payments.toppercopier');
+        $users = User::get();
+        return view('payments.toppercopier', compact($users));
     }
 
     public function updatePrice(Request $request)
