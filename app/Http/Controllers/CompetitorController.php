@@ -46,7 +46,7 @@ class CompetitorController extends Controller
     public function toppercopier()
     {
         $users = User::get();
-        return view('payments.toppercopier', compact($users));
+        return view('payments.toppercopier', compact('users'));
     }
 
     public function updatePrice(Request $request)
