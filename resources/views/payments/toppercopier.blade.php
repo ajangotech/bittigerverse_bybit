@@ -68,12 +68,18 @@
 
                     <input type="hidden" id="adId">
 
-                    <div class="border rounded p-3 bg-light">
+                    <div class="border rounded p-3 bg-light mb-3">
                         <p class="mb-2"><b>Pair:</b> <span id="pairText">---</span></p>
                         <p class="mb-2"><b>My Current Price:</b> <span id="currentPrice" class="fw-bold text-primary">---</span></p>
                         <p class="mb-2"><b>Min Limit:</b> <span id="minText">---</span></p>
                         <p class="mb-2"><b>Max Limit:</b> <span id="maxText">---</span></p>
                         <p class="mb-0"><b>Status:</b> <span id="statusText">---</span></p>
+                    </div>
+
+                    <!-- NEW: Skip Amount Input Field -->
+                    <div class="mb-0">
+                        <label for="skipAmount" class="form-label fw-bold text-muted small">Skip Price Threshold (Optional)</label>
+                        <input type="number" step="any" class="form-control" id="skipAmount" placeholder="e.g. 1500 (Skip if topper matches)">
                     </div>
 
                 </div>
@@ -269,6 +275,17 @@
                 document.getElementById('topMerchantLabel').innerHTML = `#1 ${topMerchant.nickName} (${topPrice})`;
                 document.getElementById('merchantName').innerHTML = topMerchant.nickName;
                 document.getElementById('merchantPrice').innerHTML = topPrice;
+
+                // Check if user entered a skip threshold amount
+                const skipAmountInput = document.getElementById('skipAmount').value;
+                if (skipAmountInput !== '') {
+                    const skipAmountValue = parseFloat(skipAmountInput);
+                    // If the top merchant's price matches the skip amount, skip copying
+                    if (!isNaN(skipAmountValue) && topPrice === skipAmountValue) {
+                        document.getElementById('trackingStatus').innerHTML = `Skipped (Price matches threshold: ${topPrice})`;
+                        return;
+                    }
+                }
 
                 // Find currently selected local ad object
                 const currentAd = adsData.find(x => String(x.id) === String(adId));
