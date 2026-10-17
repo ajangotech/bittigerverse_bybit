@@ -18,35 +18,65 @@
     .ads-card { border: none; border-radius: 18px; box-shadow: 0 5px 20px rgba(0,0,0,.08); }
     .badge-copying { background-color: #198754; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
     .badge-live { background-color: #dc3545; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; animation: pulse 1s infinite; }
+    .badge-top { background-color: #E37216; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
+    .badge-gone { background-color: #6c757d; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
-    .ctrl-input { max-width: 150px; }
+    .ctrl-input { max-width: 140px; }
     .merchant-head { font-weight: 700; }
+
+    .log-box {
+        max-height: 260px; overflow-y: auto;
+        background: #0d1117; border-radius: 10px; padding: 12px 16px;
+        font-family: 'Courier New', monospace; font-size: 12.5px; line-height: 1.7;
+    }
+    .log-line { color: #adbac7; }
+    .log-time { color: #6e7681; }
+    .log-info  { color: #58a6ff; }
+    .log-warn  { color: #d29922; }
+    .log-error { color: #f85149; }
+    .log-ok    { color: #3fb950; }
+    .log-swap  { color: #bc8cff; }
 </style>
 
 <div class="container-fluid py-4">
 
-    <!-- ============ GLOBAL CONTROL BAR ============ -->
+    <!-- ============ CONTROL BAR ============ -->
     <div class="card ads-card mb-4">
-        <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
-            <h5 class="fw-bold mb-0"><i class="bi bi-trophy me-1"></i> Beat-To-Top Engine (Two-Merchant Leapfrog)</h5>
-
-            <div class="d-flex flex-wrap align-items-center gap-3">
-                <div class="d-flex align-items-center gap-2">
-                    <label class="mb-0 small fw-bold">Floor Price</label>
-                    <input type="number" step="0.01" min="0" id="floorPrice" class="form-control ctrl-input" placeholder="e.g. 95000">
+        <div class="card-body">
+            <h5 class="fw-bold mb-3"><i class="bi bi-trophy me-1"></i> Adaptive Price Discovery Engine</h5>
+            <div class="d-flex flex-wrap align-items-end gap-3">
+                <div>
+                    <label class="mb-1 small fw-bold">Min Price</label>
+                    <input type="number" step="0.01" min="0" id="minPrice" class="form-control ctrl-input" placeholder="floor">
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="mb-0 small fw-bold">Step</label>
+                <div>
+                    <label class="mb-1 small fw-bold">Max Price</label>
+                    <input type="number" step="0.01" min="0" id="maxPrice" class="form-control ctrl-input" placeholder="ceiling">
+                </div>
+                <div>
+                    <label class="mb-1 small fw-bold">Step</label>
                     <input type="number" step="0.01" min="0" id="stepAmount" class="form-control ctrl-input" value="0.10">
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="mb-0 small fw-bold">Side</label>
+                <div>
+                    <label class="mb-1 small fw-bold">Interval (ms)</label>
+                    <input type="number" step="100" min="200" id="intervalMs" class="form-control ctrl-input" value="800">
+                </div>
+                <div>
+                    <label class="mb-1 small fw-bold">Max Retries</label>
+                    <input type="number" step="1" min="1" id="maxRetries" class="form-control ctrl-input" value="5">
+                </div>
+                <div>
+                    <label class="mb-1 small fw-bold">Cooldown (s)</label>
+                    <input type="number" step="1" min="1" id="cooldownSec" class="form-control ctrl-input" value="10">
+                </div>
+                <div>
+                    <label class="mb-1 small fw-bold">Side</label>
                     <select id="sideSelect" class="form-select ctrl-input">
                         <option value="0">Sell (lower = top)</option>
                         <option value="1">Buy (higher = top)</option>
                     </select>
                 </div>
-                <button id="startBtn" class="btn btn-success fw-bold"><i class="bi bi-play-fill"></i> Start Beating</button>
+                <button id="startBtn" class="btn btn-success fw-bold"><i class="bi bi-play-fill"></i> Start</button>
                 <button id="stopBtn" class="btn btn-danger fw-bold" disabled><i class="bi bi-stop-fill"></i> Stop</button>
             </div>
         </div>
@@ -59,8 +89,8 @@
             <div class="card ads-card">
                 <div class="card-body">
                     <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
-                        <span class="merchant-head"><i class="bi bi-person-badge me-1 text-primary"></i> Merchant A</span>
-                        <span id="badgeA" class="badge-copying d-none">Pushing</span>
+                        <span class="merchant-head"><i class="bi bi-person-badge me-1 text-primary"></i> Merchant A (Primary)</span>
+                        <span id="badgeA" class="badge-gone">Idle</span>
                     </h5>
 
                     <select class="form-select form-select-lg mb-2" id="userSelectA">
@@ -78,8 +108,9 @@
                     <div class="border rounded p-3 bg-light">
                         <p class="mb-2"><b>Pair:</b> <span id="pairTextA">---</span></p>
                         <p class="mb-2"><b>Current Price:</b> <span id="currentPriceA" class="fw-bold text-primary">---</span></p>
-                        <p class="mb-2"><b>Min Limit:</b> <span id="minTextA">---</span></p>
-                        <p class="mb-2"><b>Max Limit:</b> <span id="maxTextA">---</span></p>
+                        <p class="mb-2"><b>Last Good Price:</b> <span id="lastGoodA" class="fw-bold">---</span></p>
+                        <p class="mb-2"><b>Rank:</b> <span id="rankA">---</span></p>
+                        <p class="mb-2"><b>Min/Max Limit:</b> <span id="limitTextA">---</span></p>
                         <p class="mb-0"><b>Status:</b> <span id="statusTextA">---</span></p>
                     </div>
                 </div>
@@ -91,8 +122,8 @@
             <div class="card ads-card">
                 <div class="card-body">
                     <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
-                        <span class="merchant-head"><i class="bi bi-person-badge me-1 text-success"></i> Merchant B</span>
-                        <span id="badgeB" class="badge-copying d-none">Pushing</span>
+                        <span class="merchant-head"><i class="bi bi-person-badge me-1 text-success"></i> Merchant B (Secondary)</span>
+                        <span id="badgeB" class="badge-gone">Idle</span>
                     </h5>
 
                     <select class="form-select form-select-lg mb-2" id="userSelectB">
@@ -110,8 +141,9 @@
                     <div class="border rounded p-3 bg-light">
                         <p class="mb-2"><b>Pair:</b> <span id="pairTextB">---</span></p>
                         <p class="mb-2"><b>Current Price:</b> <span id="currentPriceB" class="fw-bold text-success">---</span></p>
-                        <p class="mb-2"><b>Min Limit:</b> <span id="minTextB">---</span></p>
-                        <p class="mb-2"><b>Max Limit:</b> <span id="maxTextB">---</span></p>
+                        <p class="mb-2"><b>Last Good Price:</b> <span id="lastGoodB" class="fw-bold">---</span></p>
+                        <p class="mb-2"><b>Rank:</b> <span id="rankB">---</span></p>
+                        <p class="mb-2"><b>Min/Max Limit:</b> <span id="limitTextB">---</span></p>
                         <p class="mb-0"><b>Status:</b> <span id="statusTextB">---</span></p>
                     </div>
                 </div>
@@ -119,9 +151,9 @@
         </div>
     </div>
 
-    <!-- ============ LIVE MARKET TOP LIST ============ -->
+    <!-- ============ LIVE TOP LIST + LOG ============ -->
     <div class="row g-4 mt-1">
-        <div class="col-12">
+        <div class="col-lg-7">
             <div class="card ads-card">
                 <div class="card-body">
                     <h5 class="fw-bold mb-3 d-flex align-items-center justify-content-between">
@@ -131,14 +163,25 @@
                     <div class="table-responsive">
                         <table class="table table-sm table-striped align-middle mb-0">
                             <thead>
-                                <tr><th>#</th><th>Merchant</th><th>Price</th><th>Available</th></tr>
+                                <tr><th>#</th><th>Merchant</th><th>Price</th><th>Available</th><th>Ours?</th></tr>
                             </thead>
                             <tbody id="topListBody">
-                                <tr><td colspan="4" class="text-center text-muted">Select both users & ads, then press Start.</td></tr>
+                                <tr><td colspan="5" class="text-center text-muted">Select both users & ads, then press Start.</td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <p class="mt-3 mb-0"><b>Engine Status:</b> <span id="engineStatus" class="fw-bold text-secondary">Idle</span></p>
+                    <p class="mt-3 mb-0"><b>Engine:</b> <span id="engineStatus" class="fw-bold text-secondary">Idle</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card ads-card">
+                <div class="card-body">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-journal-text me-1"></i> Decision Log</h5>
+                    <div id="logBox" class="log-box">
+                        <div class="log-line log-time">--- Awaiting start ---</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -151,8 +194,7 @@
 document.addEventListener('DOMContentLoaded', function () {
 
     /* =====================================================================
-     |  USER CREDENTIAL MAP (injected from $users — same pattern as the
-     |  original auth()->user() usage, now extended to every user).
+     |  USER CREDENTIAL MAP
      ===================================================================== */
     const USER_MAP = {
         @foreach($users as $u)
@@ -164,24 +206,36 @@ document.addEventListener('DOMContentLoaded', function () {
         @endforeach
     };
 
+    const $ = id => document.getElementById(id);
+
     /* =====================================================================
-     |  MERCHANT STATE
+     |  MERCHANT STATE — each merchant tracks its own discovery history
      ===================================================================== */
     function newMerchant() {
-        return { url: '', key: '', secret: '', ads: [], ad: null, updating: false };
+        return {
+            url: '', key: '', secret: '',
+            ads: [], ad: null, updating: false,
+            lastGoodPrice: null,
+            visible: false,
+            rank: null,
+            consecutiveDisappear: 0,
+            cooldownUntil: 0,
+            adjustedLastTick: false,
+            lastTriedPrice: null
+        };
     }
     const A = newMerchant();
     const B = newMerchant();
+    const MERCHANTS = [A, B];
 
     /* =====================================================================
      |  ENGINE STATE
      ===================================================================== */
     let running = false;
     let syncing = false;
-    let activeIndex = 0;        // 0 = A, 1 = B (the one we are currently pushing)
-    let lastBeatPrice = null;
-
-    const $ = id => document.getElementById(id);
+    let focusIndex = 0;          // who we're currently optimising (A priority)
+    let loopId = null;
+    let tickCount = 0;
 
     /* =====================================================================
      |  TOAST
@@ -194,52 +248,93 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* =====================================================================
-     |  HELPERS
+     |  DECISION LOG
      ===================================================================== */
-    function side()  { return $('sideSelect').value; }
-    function floor() { return parseFloat($('floorPrice').value) || 0; }
-    function step()  { return parseFloat($('stepAmount').value) || 0.10; }
+    function log(msg, level = 'info') {
+        const box = $('logBox');
+        const now = new Date().toLocaleTimeString();
+        const line = document.createElement('div');
+        line.className = `log-line log-${level}`;
+        line.innerHTML = `<span class="log-time">[${now}]</span> ${msg}`;
+        box.appendChild(line);
+        box.scrollTop = box.scrollHeight;
+        while (box.children.length > 120) box.removeChild(box.firstChild);
+    }
 
-    // Beat price = top price +/- step, clamped to the floor so neither
-    // merchant ever crosses the fixed market boundary the user set.
-    function beatPrice(topPrice) {
-        const s = step();
-        let p = (side() === '0') ? topPrice - s : topPrice + s;
-        if (side() === '0') {
-            if (floor() > 0 && p < floor()) p = floor();
-        } else {
-            if (floor() > 0 && p > floor()) p = floor();
-        }
+    /* =====================================================================
+     |  CONFIG READERS
+     ===================================================================== */
+    function side()   { return $('sideSelect').value; }
+    function minP()   { return parseFloat($('minPrice').value) || 0; }
+    function maxP()   { return parseFloat($('maxPrice').value) || 0; }
+    function step()   { return parseFloat($('stepAmount').value) || 0.10; }
+    function interval() { return parseInt($('intervalMs').value) || 800; }
+    function maxRetries() { return parseInt($('maxRetries').value) || 5; }
+    function cooldownSec() { return parseInt($('cooldownSec').value) || 10; }
+
+    // Sell: competitive = lower. Buy: competitive = higher.
+    function isSell() { return side() === '0'; }
+
+    function clampPrice(p) {
+        if (minP() > 0 && p < minP()) p = minP();
+        if (maxP() > 0 && p > maxP()) p = maxP();
         return p;
     }
 
-    function isAtTop(myPrice, topPrice) {
-        if (myPrice == null || isNaN(myPrice)) return false;
-        return (side() === '0') ? myPrice <= topPrice : myPrice >= topPrice;
+    // Move one step in the competitive direction (toward #1).
+    function competePrice(currentPrice) {
+        let p = isSell() ? currentPrice - step() : currentPrice + step();
+        return clampPrice(p);
     }
 
-    function merchant(i) { return i === 0 ? A : B; }
-    function prefix(i)   { return i === 0 ? 'A' : 'B'; }
+    // Move one step AWAY from competitive (back-off direction).
+    function backoffPrice(currentPrice) {
+        let p = isSell() ? currentPrice + step() : currentPrice - step();
+        return clampPrice(p);
+    }
 
+    // Is myPrice at least as competitive as topPrice?
+    function isAtTop(myPrice, topPrice) {
+        if (myPrice == null || isNaN(myPrice)) return false;
+        return isSell() ? myPrice <= topPrice : myPrice >= topPrice;
+    }
+
+    function prefix(i) { return i === 0 ? 'A' : 'B'; }
+    function merchant(i) { return MERCHANTS[i]; }
+
+    function inCooldown(m) { return Date.now() < m.cooldownUntil; }
+
+    function setBadge(i, state) {
+        const el = $('badge' + prefix(i));
+        el.className = 'badge-' + state;
+        el.textContent = state === 'top' ? '#1 Top' : state === 'gone' ? 'Gone' : state === 'push' ? 'Pushing' : 'Idle';
+    }
+
+    /* =====================================================================
+     |  RENDER AD DETAILS
+     ===================================================================== */
     function renderAd(m, p) {
         if (!m.ad) {
             $('pairText'+p).innerHTML = '---';
             $('currentPrice'+p).innerHTML = '---';
-            $('minText'+p).innerHTML = '---';
-            $('maxText'+p).innerHTML = '---';
+            $('limitText'+p).innerHTML = '---';
             $('statusText'+p).innerHTML = '---';
             return;
         }
         $('adId'+p).value = m.ad.id;
         $('pairText'+p).innerHTML = `${m.ad.tokenId}/${m.ad.currencyId}`;
         $('currentPrice'+p).innerHTML = m.ad.price;
-        $('minText'+p).innerHTML = m.ad.minAmount;
-        $('maxText'+p).innerHTML = m.ad.maxAmount;
+        $('limitText'+p).innerHTML = `${m.ad.minAmount} - ${m.ad.maxAmount}`;
         $('statusText'+p).innerHTML = m.ad.status ?? 'Active';
     }
 
+    function renderRank(m, p) {
+        $('rank'+p).innerHTML = m.visible ? `#${m.rank}` : 'Not in top';
+        $('lastGood'+p).innerHTML = m.lastGoodPrice ?? '---';
+    }
+
     /* =====================================================================
-     |  LOAD ADS for a merchant (from their own credentials)
+     |  LOAD ADS
      ===================================================================== */
     async function loadAds(m, selectEl, label) {
         if (!m.key || !m.secret) { toast(`Select ${label} user first.`, 'error'); return; }
@@ -263,7 +358,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* =====================================================================
-     |  USER SELECT BINDING
+     |  BINDINGS
      ===================================================================== */
     function bindUserSelect(sel, m, adsSel, label) {
         sel.addEventListener('change', function () {
@@ -273,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 m.ad = null; m.ads = [];
                 adsSel.disabled = true;
                 adsSel.innerHTML = `<option value="">Select user first...</option>`;
-                renderAd(m, label === 'A' ? 'A' : 'B');
+                renderAd(m, label);
                 return;
             }
             m.url = creds.url; m.key = creds.key; m.secret = creds.secret;
@@ -284,9 +379,6 @@ document.addEventListener('DOMContentLoaded', function () {
     bindUserSelect($('userSelectA'), A, $('adsSelectA'), 'A');
     bindUserSelect($('userSelectB'), B, $('adsSelectB'), 'B');
 
-    /* =====================================================================
-     |  AD SELECT BINDING
-     ===================================================================== */
     function bindAdSelect(sel, m, p) {
         sel.addEventListener('change', function () {
             m.ad = m.ads.find(x => String(x.id) === String(this.value)) || null;
@@ -297,14 +389,15 @@ document.addEventListener('DOMContentLoaded', function () {
     bindAdSelect($('adsSelectB'), B, 'B');
 
     /* =====================================================================
-     |  PUSH A PRICE UPDATE (single attempt, returns true on success)
+     |  PUSH PRICE UPDATE (verify success before trusting)
      ===================================================================== */
-    async function pushMerchantPrice(m, newPrice, p) {
+    async function pushPrice(m, newPrice, p) {
         if (!m.ad) return false;
         const current = parseFloat(m.ad.price);
         if (!isNaN(current) && current === newPrice) return true;
 
         m.updating = true;
+        m.lastTriedPrice = newPrice;
         const payload = { ...m.ad, price: String(newPrice), api_key: m.key, api_secret: m.secret };
 
         try {
@@ -317,16 +410,34 @@ document.addEventListener('DOMContentLoaded', function () {
             if (res.ok && result.status !== false && !result.error) {
                 m.ad.price = newPrice;
                 $('currentPrice'+p).innerHTML = newPrice;
+                log(`${p} price updated -> ${newPrice}`, 'ok');
                 return true;
             }
-            console.log(`Update ${p} error:`, result);
+            log(`${p} update REJECTED by API: ${result?.ret_msg || result?.error || 'unknown'}`, 'error');
             return false;
         } catch (e) {
-            console.error(`Update ${p} network error:`, e);
+            log(`${p} network error: ${e.message}`, 'error');
             return false;
         } finally {
             m.updating = false;
         }
+    }
+
+    /* =====================================================================
+     |  DETECT MERCHANT IN TOP LIST
+     |  Match by userId if available, otherwise by exact price.
+     ===================================================================== */
+    function detectMerchant(m, competitors) {
+        if (!m.ad) return null;
+        const myPrice = parseFloat(m.ad.price);
+
+        // Try userId match if the ad carries one
+        if (m.ad.userId) {
+            let match = competitors.find(c => String(c.id) === String(m.ad.userId));
+            if (match) return match;
+        }
+        // Fallback: exact price match
+        return competitors.find(c => parseFloat(c.price) === myPrice) || null;
     }
 
     /* =====================================================================
@@ -335,16 +446,25 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderTopList(competitors) {
         const body = $('topListBody');
         if (!competitors || competitors.length === 0) {
-            body.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No competitors.</td></tr>`;
+            body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No competitors.</td></tr>`;
             return;
         }
-        body.innerHTML = competitors.map((c, i) => `
-            <tr><td>${i+1}</td><td>${c.nickName}</td><td><b>${c.price}</b></td><td>${c.balance ?? '---'}</td></tr>
-        `).join('');
+        body.innerHTML = competitors.map((c, i) => {
+            const isA = A.visible && A.rank === (i + 1);
+            const isB = B.visible && B.rank === (i + 1);
+            const tag = isA ? '<span class="badge-top">A</span>' : isB ? '<span class="badge-copying">B</span>' : '';
+            return `<tr>
+                <td>${i+1}</td>
+                <td>${c.nickName}</td>
+                <td><b>${c.price}</b></td>
+                <td>${c.balance ?? '---'}</td>
+                <td>${tag}</td>
+            </tr>`;
+        }).join('');
     }
 
     /* =====================================================================
-     |  LOG TOP MERCHANT (optional DB store)
+     |  LOG TOP MERCHANT (DB store)
      ===================================================================== */
     async function logTopMerchant(topMerchant) {
         try {
@@ -357,109 +477,222 @@ document.addEventListener('DOMContentLoaded', function () {
                     price: topMerchant.price
                 })
             });
-        } catch (e) { console.log('log failed', e); }
+        } catch (e) { /* silent */ }
     }
 
     /* =====================================================================
-     |  BEAT-TO-TOP ENGINE — continuous leapfrog
+     |  OBSERVATION PHASE
+     |  Read the market and update each merchant's visibility / lastGoodPrice.
+     ===================================================================== */
+    async function observe() {
+        const res = await fetch(`${A.url}/analyze-market`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                api_key: A.key,
+                api_secret: A.secret,
+                tokenId: A.ad.tokenId,
+                currencyId: A.ad.currencyId,
+                side: side(),
+                marginPct: 4
+            })
+        });
+        const data = await res.json();
+
+        if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
+            return null;
+        }
+        const competitors = data.top_10_competitors;
+        const topPrice = parseFloat(competitors[0].price);
+
+        // Detect each merchant
+        MERCHANTS.forEach((m, i) => {
+            const match = detectMerchant(m, competitors);
+            const wasVisible = m.visible;
+            if (match) {
+                m.visible = true;
+                m.rank = competitors.indexOf(match) + 1;
+                m.lastGoodPrice = parseFloat(match.price);
+                m.consecutiveDisappear = 0;
+                m.cooldownUntil = 0;
+                renderRank(m, prefix(i));
+            } else {
+                m.visible = false;
+                m.rank = null;
+                renderRank(m, prefix(i));
+            }
+            m.adjustedLastTick = false; // reset for this tick
+        });
+
+        renderTopList(competitors);
+        await logTopMerchant(competitors[0]);
+
+        return { competitors, topPrice };
+    }
+
+    /* =====================================================================
+     |  ADAPTIVE ENGINE — core decision logic
      |
-     |  Reader = Merchant A's credentials (single reader, as requested).
-     |  1. Read market top list.
-     |  2. target = beatPrice(topPrice).
-     |  3. If active merchant NOT at top -> push it to target. Keep ticking.
-     |  4. When active reaches top (disappears from competitor list as #1):
-     |     - SWITCH active to the other merchant.
-     |     - Push the OTHER merchant to target (so it now takes #1).
-     |     - Re-glue the first one at target too (both compete at same price).
-     |  5. Floor hit -> hold both, no further undercut.
+     |  Priority: A first. Discover price through observation + small steps.
+     |  If a merchant disappears after an adjustment, revert to lastGoodPrice.
+     |  Never exceed min/max. Cooldown after maxRetries consecutive disappears.
      ===================================================================== */
     async function tick() {
         if (!running) return;
-        if (!A.ad || !B.ad) {
-            $('engineStatus').innerHTML = 'Select both merchants\' ads first.';
-            return;
-        }
+        if (!A.ad || !B.ad) { $('engineStatus').innerHTML = 'Select both ads.'; return; }
         if (syncing) return;
         syncing = true;
+        tickCount++;
 
         try {
-            const res = await fetch(`${A.url}/analyze-market`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    api_key: A.key,
-                    api_secret: A.secret,
-                    tokenId: A.ad.tokenId,
-                    currencyId: A.ad.currencyId,
-                    side: side(),
-                    marginPct: 4
-                })
-            });
-            const data = await res.json();
-
-            if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
+            // ---------- OBSERVE ----------
+            const obs = await observe();
+            if (!obs) {
                 $('engineStatus').innerHTML = 'No competitors found.';
+                log('No competitors in market.', 'warn');
+                syncing = false;
+                return;
+            }
+            const { competitors, topPrice } = obs;
+
+            const aPrice = parseFloat(A.ad.price);
+            const bPrice = parseFloat(B.ad.price);
+
+            // ---------- DETECT DISAPPEARANCE ----------
+            // If a merchant was adjusted last tick and is now invisible,
+            // the adjustment was too aggressive -> revert to lastGoodPrice.
+            let reverted = false;
+            for (let i = 0; i < 2; i++) {
+                const m = merchant(i);
+                const p = prefix(i);
+                if (!m.visible && m.lastTriedPrice != null && m.lastGoodPrice != null) {
+                    const tried = m.lastTriedPrice;
+                    const good = m.lastGoodPrice;
+                    // Only revert if the tried price was MORE aggressive than last good
+                    const wasAggressive = isSell() ? tried < good : tried > good;
+                    if (wasAggressive) {
+                        log(`${p} DISAPPEARED after push to ${tried}. Reverting to last good ${good}.`, 'error');
+                        await pushPrice(m, good, p);
+                        m.consecutiveDisappear++;
+                        m.lastTriedPrice = null;
+                        setBadge(i, 'gone');
+                        // Cooldown if too many disappearances
+                        if (m.consecutiveDisappear >= maxRetries()) {
+                            m.cooldownUntil = Date.now() + cooldownSec() * 1000;
+                            log(`${p} on cooldown for ${cooldownSec()}s (${maxRetries()} disappearances).`, 'warn');
+                        }
+                        reverted = true;
+                    }
+                }
+            }
+
+            if (reverted) { syncing = false; return; }
+
+            // ---------- DECIDE ACTION ----------
+            // Priority 1: A at top -> maintain A, then check B
+            if (A.visible && A.rank === 1) {
+                setBadge(0, 'top');
+                $('engineStatus').innerHTML = `A holding #1 at ${aPrice}. Monitoring.`;
+
+                // If B is not visible and not on cooldown, try to place B competitively
+                if (!B.visible && !inCooldown(B)) {
+                    const bTarget = clampPrice(isSell() ? topPrice - step() : topPrice + step());
+                    if (bTarget !== bPrice) {
+                        log(`A at #1. Placing B at competitive ${bTarget} (top ${topPrice}).`, 'info');
+                        await pushPrice(B, bTarget, 'B');
+                        B.adjustedLastTick = true;
+                        setBadge(1, 'push');
+                    }
+                } else if (B.visible) {
+                    setBadge(1, B.rank === 1 ? 'top' : 'push');
+                }
                 syncing = false;
                 return;
             }
 
-            const competitors = data.top_10_competitors;
-            renderTopList(competitors);
+            // Priority 2: A visible but not #1 -> push A toward top
+            if (A.visible && A.rank > 1 && !inCooldown(A)) {
+                const aTarget = competePrice(aPrice);
+                if (aTarget === aPrice) {
+                    // Hit min/max boundary
+                    log(`A at rank #${A.rank}, can't go further (${aPrice} vs top ${topPrice}). Bound reached.`, 'warn');
+                    setBadge(0, 'gone');
+                } else {
+                    log(`A at rank #${A.rank} (${aPrice}). Pushing to ${aTarget} (top ${topPrice}).`, 'info');
+                    await pushPrice(A, aTarget, 'A');
+                    A.adjustedLastTick = true;
+                    setBadge(0, 'push');
+                }
+                // Still check B opportunistically
+                if (!B.visible && !inCooldown(B)) {
+                    const bTarget = clampPrice(isSell() ? topPrice - step() : topPrice + step());
+                    if (bTarget !== bPrice) {
+                        log(`Also placing B at ${bTarget}.`, 'info');
+                        await pushPrice(B, bTarget, 'B');
+                        B.adjustedLastTick = true;
+                        setBadge(1, 'push');
+                    }
+                }
+                syncing = false;
+                return;
+            }
 
-            const topMerchant = competitors[0];
-            const topPrice = parseFloat(topMerchant.price);
-            if (isNaN(topPrice)) { syncing = false; return; }
+            // Priority 3: A not visible (and not just reverted) -> try to place A
+            if (!A.visible && !inCooldown(A)) {
+                // Place A at a competitive price relative to current top
+                const aTarget = clampPrice(isSell() ? topPrice - step() : topPrice + step());
+                if (aTarget !== aPrice) {
+                    log(`A not in top list. Placing A at ${aTarget} (top ${topPrice}).`, 'info');
+                    await pushPrice(A, aTarget, 'A');
+                    A.adjustedLastTick = true;
+                    setBadge(0, 'push');
+                    $('engineStatus').innerHTML = `Placing A at ${aTarget}, awaiting market verification.`;
+                }
+                syncing = false;
+                return;
+            }
 
-            await logTopMerchant(topMerchant);
+            // Priority 4: A on cooldown -> optimise B instead
+            if (inCooldown(A)) {
+                $('engineStatus').innerHTML = 'A on cooldown. Optimising B.';
+                setBadge(0, 'gone');
+                log('A on cooldown, switching focus to B.', 'swap');
 
-            const ai = activeIndex;
-            const active = merchant(ai);
-            const other  = merchant(1 - ai);
-            const ap = prefix(ai);
-            const op = prefix(1 - ai);
+                if (B.visible && B.rank === 1) {
+                    setBadge(1, 'top');
+                    $('engineStatus').innerHTML = `B holding #1 at ${bPrice}. A on cooldown.`;
+                } else if (B.visible && B.rank > 1 && !inCooldown(B)) {
+                    const bTarget = competePrice(bPrice);
+                    if (bTarget !== bPrice) {
+                        log(`B at rank #${B.rank} (${bPrice}). Pushing to ${bTarget}.`, 'info');
+                        await pushPrice(B, bTarget, 'B');
+                        B.adjustedLastTick = true;
+                        setBadge(1, 'push');
+                    }
+                } else if (!B.visible && !inCooldown(B)) {
+                    const bTarget = clampPrice(isSell() ? topPrice - step() : topPrice + step());
+                    if (bTarget !== bPrice) {
+                        log(`B not in top. Placing B at ${bTarget}.`, 'info');
+                        await pushPrice(B, bTarget, 'B');
+                        B.adjustedLastTick = true;
+                        setBadge(1, 'push');
+                    }
+                }
+                syncing = false;
+                return;
+            }
 
-            const activePrice = parseFloat(active.ad.price);
-            const target = beatPrice(topPrice);
-
-            const floorHit = (side() === '0')
-                ? (floor() > 0 && target <= floor() && activePrice <= floor())
-                : (floor() > 0 && target >= floor() && activePrice >= floor());
-
-            if (floorHit) {
-                $('engineStatus').innerHTML = `Floor reached (${floor()}). Holding both merchants.`;
-                $('badgeA').classList.add('d-none');
-                $('badgeB').classList.add('d-none');
-                await pushMerchantPrice(active, floor(), ap);
-                await pushMerchantPrice(other, floor(), op);
-                lastBeatPrice = floor();
-
-            } else if (isAtTop(activePrice, topPrice)) {
-                // Active merchant IS at the top -> it "disappeared" from the
-                // competitor list as the #1. Leapfrog: switch to the other
-                // merchant and push it to target, while re-gluing this one so
-                // both compete at the same price and hold the top slots.
-                $('badge'+ap).classList.add('d-none');
-                $('badge'+op).classList.remove('d-none');
-                $('engineStatus').innerHTML =
-                    `${ap} at top (${activePrice}). Leapfrog -> pushing ${op} to ${target}, re-gluing ${ap}.`;
-
-                await pushMerchantPrice(other, target, op);
-                await pushMerchantPrice(active, target, ap);
-                activeIndex = 1 - ai;
-                lastBeatPrice = target;
-
-            } else {
-                // Active merchant NOT at top -> increment toward #1.
-                $('badge'+ap).classList.remove('d-none');
-                $('badge'+op).classList.add('d-none');
-                $('engineStatus').innerHTML =
-                    `${ap} not at top (${activePrice} vs #1 ${topPrice}). Beating to ${target}`;
-                await pushMerchantPrice(active, target, ap);
-                lastBeatPrice = target;
+            // Priority 5: Both on cooldown or neither can move
+            if (inCooldown(A) && inCooldown(B)) {
+                $('engineStatus').innerHTML = 'Both merchants on cooldown. Waiting.';
+                log('Both A and B on cooldown. Pausing adjustments.', 'warn');
+                setBadge(0, 'gone');
+                setBadge(1, 'gone');
             }
 
         } catch (e) {
-            console.error('Engine tick error:', e);
+            console.error('Engine error:', e);
+            log(`Engine error: ${e.message}`, 'error');
             $('engineStatus').innerHTML = 'Sync error (retrying...)';
         } finally {
             syncing = false;
@@ -469,27 +702,37 @@ document.addEventListener('DOMContentLoaded', function () {
     /* =====================================================================
      |  START / STOP
      ===================================================================== */
-    let loopId = null;
-
     $('startBtn').addEventListener('click', () => {
         if (!A.ad) { toast('Select Merchant A\'s ad.', 'error'); return; }
         if (!B.ad) { toast('Select Merchant B\'s ad.', 'error'); return; }
-        if (!$('floorPrice').value) { toast('Set a floor price.', 'error'); return; }
+        if (!minP() && !maxP()) { toast('Set at least a min or max price.', 'error'); return; }
         if (A.ad.tokenId !== B.ad.tokenId || A.ad.currencyId !== B.ad.currencyId) {
             toast('Both merchants must use the SAME pair.', 'error'); return;
         }
 
+        // Reset merchant states
+        MERCHANTS.forEach(m => {
+            m.lastGoodPrice = null;
+            m.visible = false;
+            m.rank = null;
+            m.consecutiveDisappear = 0;
+            m.cooldownUntil = 0;
+            m.adjustedLastTick = false;
+            m.lastTriedPrice = null;
+        });
+
         running = true;
-        activeIndex = 0;
-        lastBeatPrice = null;
+        tickCount = 0;
+        $('logBox').innerHTML = '';
+        log('Engine started. Discovering market price...', 'ok');
         $('startBtn').disabled = true;
         $('stopBtn').disabled = false;
         $('liveBadge').classList.remove('d-none');
         $('engineStatus').innerHTML = 'Engine started.';
-        toast('Beat-to-Top engine started.', 'info');
+        toast('Adaptive engine started.', 'info');
 
         tick();
-        loopId = setInterval(tick, 800);
+        loopId = setInterval(tick, interval());
     });
 
     $('stopBtn').addEventListener('click', () => {
@@ -498,10 +741,12 @@ document.addEventListener('DOMContentLoaded', function () {
         $('startBtn').disabled = false;
         $('stopBtn').disabled = true;
         $('liveBadge').classList.add('d-none');
-        $('badgeA').classList.add('d-none');
-        $('badgeB').classList.add('d-none');
+        setBadge(0, 'gone');
+        setBadge(1, 'gone');
         $('engineStatus').innerHTML = 'Engine stopped.';
+        log('Engine stopped.', 'warn');
         toast('Engine stopped.', 'info');
     });
+
 });
 </script>
