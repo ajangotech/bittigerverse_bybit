@@ -76,10 +76,17 @@
                         <p class="mb-0"><b>Status:</b> <span id="statusText">---</span></p>
                     </div>
 
-                    <!-- NEW: Skip Amount Input Field -->
-                    <div class="mb-0">
+                    <!-- Skip Amount Input Field -->
+                    <div class="mb-3">
                         <label for="skipAmount" class="form-label fw-bold text-muted small">Skip Price Threshold (Optional)</label>
                         <input type="number" step="any" class="form-control" id="skipAmount" placeholder="e.g. 1500 (Skip if topper matches)">
+                    </div>
+
+                    <!-- NEW: Pause / Resume Button -->
+                    <div class="d-grid">
+                        <button id="pauseBtn" class="btn btn-warning fw-bold d-none" type="button">
+                            <i class="bi bi-pause-fill me-1"></i> Pause Copier
+                        </button>
                     </div>
 
                 </div>
@@ -123,6 +130,7 @@
         const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
         const adsSelect = document.getElementById('adsSelect');
+        const pauseBtn = document.getElementById('pauseBtn');
 
         let adsData = [];
         let selectedToken = null;
@@ -130,6 +138,7 @@
         let lastCopiedPrice = null;
         let updatingAd = false;
         let targetAdPrice = null;
+        let isPaused = false; // Pause state variable
 
         /*
         |--------------------------------------------------------------------------
@@ -195,6 +204,7 @@
                 selectedToken = null;
                 selectedCurrency = null;
                 lastCopiedPrice = null;
+                isPaused = false;
 
                 document.getElementById('adId').value = '';
                 document.getElementById('pairText').innerHTML = '---';
@@ -208,6 +218,7 @@
                 document.getElementById('merchantPrice').innerHTML = '---';
                 document.getElementById('trackingStatus').innerHTML = 'Idle (Select Ad)';
                 document.getElementById('copierBadge').classList.add('d-none');
+                pauseBtn.classList.add('d-none');
                 return;
             }
 
@@ -215,6 +226,12 @@
             selectedToken = ad.tokenId;
             selectedCurrency = ad.currencyId;
             lastCopiedPrice = null;
+            isPaused = false;
+
+            // Reset pause button state
+            pauseBtn.classList.remove('d-none');
+            pauseBtn.className = 'btn btn-warning fw-bold';
+            pauseBtn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause Copier';
 
             document.getElementById('adId').value = ad.id;
             document.getElementById('pairText').innerHTML = `${ad.tokenId}/${ad.currencyId}`;
@@ -225,6 +242,8 @@
 
             document.getElementById('trackingStatus').innerHTML = 'Connecting to Market...';
             document.getElementById('copierBadge').classList.remove('d-none');
+            document.getElementById('copierBadge').className = 'badge-copying';
+            document.getElementById('copierBadge').innerHTML = 'Auto-Copier Active';
 
             toast(`Selected ${ad.tokenId}/${ad.currencyId}. Initializing Topper Copier...`);
 
@@ -234,11 +253,37 @@
 
         /*
         |--------------------------------------------------------------------------
+        | Pause / Resume Button Click Listener
+        |--------------------------------------------------------------------------
+        */
+        pauseBtn.addEventListener('click', function () {
+            isPaused = !isPaused;
+
+            if (isPaused) {
+                pauseBtn.className = 'btn btn-success fw-bold';
+                pauseBtn.innerHTML = '<i class="bi bi-play-fill me-1"></i> Resume Copier';
+                document.getElementById('trackingStatus').innerHTML = 'Paused by User';
+                document.getElementById('copierBadge').className = 'badge bg-secondary text-white px-2 py-1 rounded';
+                document.getElementById('copierBadge').innerHTML = 'Auto-Copier Paused';
+                toast('Topper Copier paused.', 'error');
+            } else {
+                pauseBtn.className = 'btn btn-warning fw-bold';
+                pauseBtn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause Copier';
+                document.getElementById('copierBadge').className = 'badge-copying';
+                document.getElementById('copierBadge').innerHTML = 'Auto-Copier Active';
+                toast('Topper Copier resumed.');
+                syncTopperCopier();
+            }
+        });
+
+        /*
+        |--------------------------------------------------------------------------
         | Fetch Top Merchant & Auto-Update Ad (0.5-Second Engine)
         |--------------------------------------------------------------------------
         */
         async function syncTopperCopier() {
-            if (!selectedToken || !selectedCurrency) return;
+            // Check if paused or missing selection
+            if (isPaused || !selectedToken || !selectedCurrency) return;
 
             const adId = document.getElementById('adId').value;
             if (!adId) return;
@@ -259,6 +304,9 @@
                 });
 
                 const data = await res.json();
+
+                // Double check if paused during async fetch
+                if (isPaused) return;
 
                 if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
                     document.getElementById('trackingStatus').innerHTML = 'No competitors found';
@@ -339,6 +387,12 @@
             updatingAd = true;
 
             while (true) {
+                // Stop trying if paused by user mid-retry
+                if (isPaused) {
+                    updatingAd = false;
+                    break;
+                }
+
                 const adId = document.getElementById('adId').value;
                 const ad = adsData.find(x => String(x.id) === String(adId));
 
@@ -396,7 +450,7 @@
         |--------------------------------------------------------------------------
         */
         setInterval(() => {
-            if (selectedToken && selectedCurrency) {
+            if (!isPaused && selectedToken && selectedCurrency) {
                 syncTopperCopier();
             }
         }, 200);
