@@ -356,14 +356,15 @@ document.addEventListener('DOMContentLoaded', function () {
      |  merchant gets base + (margin * position), producing an ordered list
      |  where every account is spaced by the margin figure.
      ===================================================================== */
-    async function applyPriceToAll(basePrice) {
+    async function applyPriceToAll(basePrice, useMargin = true) {
         if (isNaN(basePrice) || basePrice <= 0) { toast('Enter a valid price.', 'error'); return; }
         const ready = activeMerchants();
         if (ready.length === 0) { toast('Select at least one merchant ad.', 'error'); return; }
 
-        const amt = marginAmt();
-        toast(`Pushing ordered ladder (base ${basePrice}, margin ${amt}) to ${ready.length} merchant(s)...`, 'info');
-        let ok = 0;
+        const amt = useMargin ? marginAmt() : 0;
+        const label = useMargin ? `ordered ladder (base ${basePrice}, margin ${amt})` : `exact price ${basePrice} (no margin)`;
+        toast(`Pushing ${label} to ${ready.length} merchant(s)...`, 'info');
+        let ok = 0, skipped = 0;
         let pos = 0;
         for (let i = 0; i < MERCHANT_COUNT; i++) {
             const m = MERCHANTS[i];
@@ -371,12 +372,20 @@ document.addEventListener('DOMContentLoaded', function () {
             if (!m.ad) continue;
             const targetPrice = basePrice + (amt * pos);
             pos++;
+            const current = parseFloat(m.ad.price);
+            if (!isNaN(current) && current === targetPrice) {
+                skipped++;
+                continue;
+            }
             setBadge(i, 'push');
             const success = await pushPrice(m, targetPrice, p);
             if (success) ok++;
             setBadge(i, success ? 'probe' : 'gone');
         }
-        toast(`Ordered ladder applied to ${ok} merchant(s).`, ok > 0 ? 'success' : 'error');
+        const msg = skipped > 0
+            ? `Price applied to ${ok} merchant(s), ${skipped} already at that price (skipped).`
+            : `Price applied to ${ok} merchant(s).`;
+        toast(msg, ok > 0 || skipped > 0 ? 'success' : 'error');
     }
 
     /* =====================================================================
@@ -447,7 +456,7 @@ document.addEventListener('DOMContentLoaded', function () {
     window.useCompetitorPrice = function (price) {
         if (isNaN(price)) { toast('Invalid competitor price.', 'error'); return; }
         $('setPrice').value = price;
-        applyPriceToAll(price);
+        applyPriceToAll(price, false);
     };
 
     /* =====================================================================
