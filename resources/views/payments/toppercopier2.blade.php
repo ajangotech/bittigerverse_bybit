@@ -61,11 +61,6 @@
         </div>
     </div>
 
-    <!-- ============ MERCHANT CARDS ============ -->
-    <div class="row g-4" id="merchantRow">
-        {{-- Merchant cards are rendered by JS below --}}
-    </div>
-
     <!-- ============ LIVE TOP LIST ============ -->
     <div class="row g-4 mt-1">
         <div class="col-12">
@@ -97,6 +92,13 @@
             </div>
         </div>
     </div>
+
+    <!-- ============ MERCHANT CARDS ============ -->
+    <div class="row g-4" id="merchantRow">
+        {{-- Merchant cards are rendered by JS below --}}
+    </div>
+
+    
 </div>
 
 @endsection
