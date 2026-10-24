@@ -22,6 +22,7 @@
     .badge-gone { background-color: #6c757d; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
     .badge-probe { background-color: #0d6efd; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
     .badge-lock { background-color: #198754; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; animation: pulse 2s infinite; }
+    .badge-paused { background-color: #d29922; color: #fff; padding: 3px 8px; border-radius: 6px; font-size: 12px; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
     .ctrl-input { max-width: 160px; }
     .merchant-head { font-weight: 700; }
@@ -34,35 +35,33 @@
     <!-- ============ CONTROL BAR ============ -->
     <div class="card ads-card mb-4">
         <div class="card-body">
-            <h5 class="fw-bold mb-3"><i class="bi bi-cpu me-1"></i> Price Copier Engine (5 Merchants)</h5>
+            <h5 class="fw-bold mb-3"><i class="bi bi-cpu me-1"></i> Price Copier Engine</h5>
             <div class="d-flex flex-wrap align-items-end gap-3">
                 <div>
                     <label class="mb-1 small fw-bold">Set Price</label>
                     <input type="number" step="0.01" min="0" id="setPrice" class="form-control ctrl-input" placeholder="price to push">
                 </div>
                 <div>
+                    <label class="mb-1 small fw-bold">Margin (figure)</label>
+                    <input type="number" step="0.01" min="0" id="marginAmt" class="form-control ctrl-input" value="10">
+                </div>
+                <div>
                     <label class="mb-1 small fw-bold">Interval (ms)</label>
                     <input type="number" step="100" min="500" id="intervalMs" class="form-control ctrl-input" value="2000">
                 </div>
-                <div>
-                    <label class="mb-1 small fw-bold">Side</label>
-                    <select id="sideSelect" class="form-select ctrl-input">
-                        <option value="0">Sell (lower = top)</option>
-                        <option value="1">Buy (higher = top)</option>
-                    </select>
-                </div>
-                <button id="applyAllBtn" class="btn btn-success fw-bold"><i class="bi bi-lightning-charge"></i> Apply to All 5</button>
-                <button id="startBtn" class="btn btn-primary fw-bold"><i class="bi bi-play-fill"></i> Start Live</button>
-                <button id="stopBtn" class="btn btn-danger fw-bold" disabled><i class="bi bi-stop-fill"></i> Stop Live</button>
+                <button id="applyAllBtn" class="btn btn-success fw-bold"><i class="bi bi-lightning-charge"></i> Apply to All</button>
+                <button id="startBtn" class="btn btn-primary fw-bold"><i class="bi bi-play-fill"></i> Start</button>
+                <button id="pauseBtn" class="btn btn-warning fw-bold" disabled><i class="bi bi-pause-fill"></i> Pause</button>
             </div>
             <p class="mt-3 mb-0 text-muted small">
-                Set a price and apply it to all 5 merchants at once, or pick any competitor from the
-                live market top list below to copy their price to every account automatically.
+                Set a base price and a margin figure. Each selected merchant gets a price spaced by
+                that margin, forming an ordered ladder (e.g. base 100, margin 10 &rarr; 100, 110, 120, ...).
+                Or click "Use Price" on any competitor below to copy their price as the base.
             </p>
         </div>
     </div>
 
-    <!-- ============ 5 MERCHANT CARDS ============ -->
+    <!-- ============ MERCHANT CARDS ============ -->
     <div class="row g-4" id="merchantRow">
         {{-- Merchant cards are rendered by JS below --}}
     </div>
@@ -89,7 +88,7 @@
                                 </tr>
                             </thead>
                             <tbody id="topListBody">
-                                <tr><td colspan="6" class="text-center text-muted">Select all 5 users &amp; ads, then press Start Live.</td></tr>
+                                <tr><td colspan="6" class="text-center text-muted">Select at least one user &amp; ad to load the market.</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -159,9 +158,26 @@ document.addEventListener('DOMContentLoaded', function () {
     /* =====================================================================
      |  CONFIG
      ===================================================================== */
-    function side()     { return $('sideSelect').value; }
-    function interval() { return parseInt($('intervalMs').value) || 2000; }
-    function isSell()   { return side() === '0'; }
+    function interval()   { return parseInt($('intervalMs').value) || 2000; }
+    function marginAmt()  { return parseFloat($('marginAmt').value) || 0; }
+
+    // The margin sent to the market analysis endpoint. With a fixed figure
+    // margin, convert to an approximate percentage of the base price so the
+    // endpoint still returns a useful competitor window.
+    function marginPctFor(basePrice) {
+        const amt = marginAmt();
+        if (!amt || !basePrice || basePrice <= 0) return 4;
+        return Math.max(1, (amt / basePrice) * 100);
+    }
+
+    /* =====================================================================
+     |  HELPERS
+     ===================================================================== */
+    function prefix(i) { return LABELS[i]; }
+
+    function activeMerchants() {
+        return MERCHANTS.filter(m => m.ad);
+    }
 
     /* =====================================================================
      |  RENDER MERCHANT CARDS
@@ -209,13 +225,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     buildMerchantCards();
 
-    function prefix(i) { return LABELS[i]; }
-
     function setBadge(i, state) {
         const el = $('badge' + prefix(i));
         if (!el) return;
         el.className = 'badge-' + state;
-        const labels = { top: '#1 Top', gone: 'Gone', push: 'Pushing', probe: 'Probing', lock: 'LOCKED', idle: 'Idle' };
+        const labels = { top: '#1 Top', gone: 'Gone', push: 'Pushing', probe: 'Probing', lock: 'LOCKED', idle: 'Idle', paused: 'Paused' };
         el.textContent = labels[state] || state;
     }
 
@@ -296,6 +310,8 @@ document.addEventListener('DOMContentLoaded', function () {
             adsSelect.addEventListener('change', function () {
                 merchant.ad = merchant.ads.find(x => String(x.id) === String(this.value)) || null;
                 renderAd(merchant, label);
+                // Auto-load the market top list as soon as an ad is picked
+                if (merchant.ad && !running) loadMarketOnce();
             });
         })(m, userSel, adsSel, p);
     }
@@ -334,25 +350,33 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* =====================================================================
-     |  APPLY A PRICE TO ALL 5 MERCHANTS AT ONCE
+     |  APPLY AN ORDERED PRICE LADDER TO ALL SELECTED MERCHANTS
+     |
+     |  The first selected merchant gets the base price; each subsequent
+     |  merchant gets base + (margin * position), producing an ordered list
+     |  where every account is spaced by the margin figure.
      ===================================================================== */
-    async function applyPriceToAll(newPrice) {
-        if (isNaN(newPrice) || newPrice <= 0) { toast('Enter a valid price.', 'error'); return; }
-        const ready = MERCHANTS.filter(m => m.ad);
+    async function applyPriceToAll(basePrice) {
+        if (isNaN(basePrice) || basePrice <= 0) { toast('Enter a valid price.', 'error'); return; }
+        const ready = activeMerchants();
         if (ready.length === 0) { toast('Select at least one merchant ad.', 'error'); return; }
 
-        toast(`Pushing ${newPrice} to all ${MERCHANT_COUNT} merchants...`, 'info');
+        const amt = marginAmt();
+        toast(`Pushing ordered ladder (base ${basePrice}, margin ${amt}) to ${ready.length} merchant(s)...`, 'info');
         let ok = 0;
+        let pos = 0;
         for (let i = 0; i < MERCHANT_COUNT; i++) {
             const m = MERCHANTS[i];
             const p = prefix(i);
             if (!m.ad) continue;
+            const targetPrice = basePrice + (amt * pos);
+            pos++;
             setBadge(i, 'push');
-            const success = await pushPrice(m, newPrice, p);
+            const success = await pushPrice(m, targetPrice, p);
             if (success) ok++;
             setBadge(i, success ? 'probe' : 'gone');
         }
-        toast(`Price ${newPrice} applied to ${ok} merchant(s).`, ok > 0 ? 'success' : 'error');
+        toast(`Ordered ladder applied to ${ok} merchant(s).`, ok > 0 ? 'success' : 'error');
     }
 
     /* =====================================================================
@@ -427,10 +451,9 @@ document.addEventListener('DOMContentLoaded', function () {
     };
 
     /* =====================================================================
-     |  OBSERVE — read market, update visibility, render top list
+     |  FETCH MARKET TOP LIST — shared by one-shot load and live loop
      ===================================================================== */
-    async function observe() {
-        // Use the first merchant with an ad as the market reader
+    async function fetchMarket() {
         const reader = MERCHANTS.find(m => m.ad);
         if (!reader) return null;
 
@@ -442,13 +465,13 @@ document.addEventListener('DOMContentLoaded', function () {
                 api_secret: reader.secret,
                 tokenId: reader.ad.tokenId,
                 currencyId: reader.ad.currencyId,
-                side: side(),
-                marginPct: 4
+                side: '0',
+                marginPct: marginPctFor(parseFloat(reader.ad.price))
             })
         });
         const data = await res.json();
 
-        if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
+        if (!data || !data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
             return null;
         }
 
@@ -475,6 +498,30 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     /* =====================================================================
+     |  ONE-SHOT MARKET LOAD (when an ad is selected, before going live)
+     ===================================================================== */
+    let marketLoadingOnce = false;
+    async function loadMarketOnce() {
+        if (marketLoadingOnce) return;
+        marketLoadingOnce = true;
+        $('engineStatus').innerHTML = 'Loading market...';
+        try {
+            const obs = await fetchMarket();
+            if (!obs) {
+                $('engineStatus').innerHTML = 'No competitors found.';
+                $('topListBody').innerHTML = `<tr><td colspan="6" class="text-center text-muted">No competitors found.</td></tr>`;
+            } else {
+                $('engineStatus').innerHTML = `Market loaded — #1 price: ${obs.topPrice}`;
+            }
+        } catch (e) {
+            console.error('Market load error:', e);
+            $('engineStatus').innerHTML = 'Market load error.';
+        } finally {
+            marketLoadingOnce = false;
+        }
+    }
+
+    /* =====================================================================
      |  LIVE LOOP
      ===================================================================== */
     async function tick() {
@@ -482,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (syncing) return;
         syncing = true;
         try {
-            const obs = await observe();
+            const obs = await fetchMarket();
             if (!obs) {
                 $('engineStatus').innerHTML = 'No competitors found.';
             } else {
@@ -496,8 +543,53 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function allAdsSelected() {
-        return MERCHANTS.every(m => m.ad);
+    /* =====================================================================
+     |  START / PAUSE
+     |
+     |  Start  — begins (or resumes) the live loop and market requests
+     |  Pause  — immediately stops ALL requests; the loop halts and no
+     |            fetch is in-flight or scheduled. Press Start to resume.
+     ===================================================================== */
+    function startLive() {
+        const ready = activeMerchants();
+        if (ready.length === 0) {
+            toast('Select at least one merchant ad first.', 'error');
+            return;
+        }
+
+        // Ensure all selected merchants use the same pair
+        const first = ready[0].ad;
+        for (let i = 0; i < MERCHANT_COUNT; i++) {
+            const m = MERCHANTS[i];
+            if (!m.ad) continue;
+            if (m.ad.tokenId !== first.tokenId || m.ad.currencyId !== first.currencyId) {
+                toast('All selected merchants must use the SAME pair.', 'error');
+                return;
+            }
+        }
+
+        running = true;
+        MERCHANTS.forEach((m, i) => { if (m.ad) setBadge(i, 'probe'); });
+        $('startBtn').disabled = true;
+        $('pauseBtn').disabled = false;
+        $('liveBadge').classList.remove('d-none');
+        $('engineStatus').innerHTML = 'Live engine started.';
+        toast('Live engine started.', 'info');
+
+        tick();
+        loopId = setInterval(tick, interval());
+    }
+
+    function pauseLive() {
+        // Stop everything — no more requests will be sent
+        running = false;
+        if (loopId) { clearInterval(loopId); loopId = null; }
+        $('startBtn').disabled = false;
+        $('pauseBtn').disabled = true;
+        $('liveBadge').classList.add('d-none');
+        MERCHANTS.forEach((m, i) => { if (m.ad) setBadge(i, 'paused'); });
+        $('engineStatus').innerHTML = 'Paused — all requests stopped.';
+        toast('Paused. All requests stopped.', 'info');
     }
 
     /* =====================================================================
@@ -508,42 +600,8 @@ document.addEventListener('DOMContentLoaded', function () {
         applyPriceToAll(price);
     });
 
-    $('startBtn').addEventListener('click', () => {
-        if (!allAdsSelected()) {
-            toast('Select all 5 merchant ads first.', 'error');
-            return;
-        }
-        // Ensure all merchants use the same pair
-        const first = MERCHANTS[0].ad;
-        for (let i = 1; i < MERCHANT_COUNT; i++) {
-            if (MERCHANTS[i].ad.tokenId !== first.tokenId || MERCHANTS[i].ad.currencyId !== first.currencyId) {
-                toast('All merchants must use the SAME pair.', 'error');
-                return;
-            }
-        }
-
-        running = true;
-        MERCHANTS.forEach((m, i) => setBadge(i, 'probe'));
-        $('startBtn').disabled = true;
-        $('stopBtn').disabled = false;
-        $('liveBadge').classList.remove('d-none');
-        $('engineStatus').innerHTML = 'Live engine started.';
-        toast('Live engine started.', 'info');
-
-        tick();
-        loopId = setInterval(tick, interval());
-    });
-
-    $('stopBtn').addEventListener('click', () => {
-        running = false;
-        if (loopId) { clearInterval(loopId); loopId = null; }
-        $('startBtn').disabled = false;
-        $('stopBtn').disabled = true;
-        $('liveBadge').classList.add('d-none');
-        MERCHANTS.forEach((m, i) => setBadge(i, 'gone'));
-        $('engineStatus').innerHTML = 'Engine stopped.';
-        toast('Engine stopped.', 'info');
-    });
+    $('startBtn').addEventListener('click', startLive);
+    $('pauseBtn').addEventListener('click', pauseLive);
 
 });
 </script>
