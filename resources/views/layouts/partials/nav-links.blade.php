@@ -32,7 +32,7 @@
 
     <a class="nav-link {{ request()->is('/dashboard/toppercopier*') ? 'active' : '' }}"
         href="/dashboard/toppercopier">
-        <i class="bi bi-person-badge me-2"></i> Topper Copier
+        <i class="bi bi-person-badge me-2"></i> Topper Copier 1
     </a>
 
     <a class="nav-link {{ request()->is('/dashboard/toppercopier2*') ? 'active' : '' }}"
@@ -41,10 +41,17 @@
     </a>
 
     @auth
+    <hr>
         @if(auth()->user()->role === 'admin')
             <a class="nav-link {{ request()->is('dashboard/users*') ? 'active' : '' }}"
             href="/dashboard/users">
                 <i class="bi bi-people me-2"></i> Manage Users
+            </a>
+        @endif
+        @if(auth()->user()->role === 'admin')
+            <a class="nav-link {{ request()->is('dashboard/droplets*') ? 'active' : '' }}"
+            href="/dashboard/droplets">
+                <i class="bi bi-server me-2"></i> Manage Droplets
             </a>
         @endif
     @endauth

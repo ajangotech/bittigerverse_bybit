@@ -22,6 +22,11 @@ class UserController extends Controller
         return view('users.index', compact('users'));
     }
 
+    public function droplets()
+    {
+        return view('users.droplets');
+    }
+
     public function store(Request $request)
     {
         $request->validate([

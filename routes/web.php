@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BybitController;
 use App\Http\Controllers\CompetitorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DigitalOceanController;
 use App\Http\Controllers\OrdersController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\UserController;
@@ -29,6 +30,16 @@ Route::middleware('auth')->group(function () {
     Route::delete('/dashboard/ads/{id}', [AdsController::class, 'destroy']);
 
     Route::get('/dashboard/users', [UserController::class, 'index'])->name('dashboard.users');
+
+    Route::get('/dashboard/droplets', [DigitalOceanController::class, 'index'])
+        ->name('dashboard.droplets');
+
+    Route::post('/dashboard/droplets/{id}/restart', [DigitalOceanController::class, 'restart'])
+        ->name('dashboard.droplets.restart');
+
+    Route::post('/dashboard/droplets/{id}/power-cycle', [DigitalOceanController::class, 'powerCycle'])
+        ->name('dashboard.droplets.power-cycle');
+    
     Route::post('/dashboard/users/{id}/status', [UserController::class, 'updateStatus']);
     Route::post('/dashboard/users', [UserController::class, 'store']);
     Route::delete('/dashboard/users/{id}', [UserController::class, 'destroy']);
