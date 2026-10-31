@@ -82,7 +82,7 @@
                         <input type="number" step="any" class="form-control" id="skipAmount" placeholder="e.g. 1500 (Skip if topper matches)">
                     </div>
 
-                    <!-- NEW: Pause / Resume Button -->
+                    <!-- Pause / Resume Button -->
                     <div class="d-grid">
                         <button id="pauseBtn" class="btn btn-warning fw-bold d-none" type="button">
                             <i class="bi bi-pause-fill me-1"></i> Pause Copier
@@ -138,7 +138,7 @@
         let lastCopiedPrice = null;
         let updatingAd = false;
         let targetAdPrice = null;
-        let isPaused = false; // Pause state variable
+        let isPaused = false;
 
         /*
         |--------------------------------------------------------------------------
@@ -222,13 +222,11 @@
                 return;
             }
 
-            // Set global values for active Ad
             selectedToken = ad.tokenId;
             selectedCurrency = ad.currencyId;
             lastCopiedPrice = null;
             isPaused = false;
 
-            // Reset pause button state
             pauseBtn.classList.remove('d-none');
             pauseBtn.className = 'btn btn-warning fw-bold';
             pauseBtn.innerHTML = '<i class="bi bi-pause-fill me-1"></i> Pause Copier';
@@ -247,7 +245,6 @@
 
             toast(`Selected ${ad.tokenId}/${ad.currencyId}. Initializing Topper Copier...`);
 
-            // Execute immediate fetch & sync
             await syncTopperCopier();
         });
 
@@ -278,18 +275,31 @@
 
         /*
         |--------------------------------------------------------------------------
+        | Pick Copy Target
+        | Returns the first competitor (in ranking order) whose price is not the
+        | skip threshold. Returns null when every competitor matches the threshold.
+        |--------------------------------------------------------------------------
+        */
+        function pickCopyTarget(competitors, skipValue) {
+            return competitors.find(m => {
+                const p = parseFloat(m.price);
+                if (isNaN(p)) return false;
+                return isNaN(skipValue) || p !== skipValue;
+            }) ?? null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Fetch Top Merchant & Auto-Update Ad (0.5-Second Engine)
         |--------------------------------------------------------------------------
         */
         async function syncTopperCopier() {
-            // Check if paused or missing selection
             if (isPaused || !selectedToken || !selectedCurrency) return;
 
             const adId = document.getElementById('adId').value;
             if (!adId) return;
 
             try {
-                // Fetch Top Market Competitors
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -305,7 +315,6 @@
 
                 const data = await res.json();
 
-                // Double check if paused during async fetch
                 if (isPaused) return;
 
                 if (!data.status || !data.top_10_competitors || data.top_10_competitors.length === 0) {
@@ -313,42 +322,42 @@
                     return;
                 }
 
-                // Extract #1 Top Merchant
-                const topMerchant = data.top_10_competitors[0];
+                const competitors = data.top_10_competitors;
+                const topMerchant = competitors[0];
                 const topPrice = parseFloat(topMerchant.price);
 
                 if (isNaN(topPrice)) return;
 
-                // 1. ALWAYS update the display to show the current #1 Merchant
+                // Always show the current #1 merchant on the display
                 document.getElementById('topMerchantLabel').innerHTML = `#1 ${topMerchant.nickName} (${topPrice})`;
                 document.getElementById('merchantName').innerHTML = topMerchant.nickName;
                 document.getElementById('merchantPrice').innerHTML = topPrice;
 
-                // Check if user entered a skip threshold amount
-                const skipAmountInput = document.getElementById('skipAmount').value;
-                if (skipAmountInput !== '') {
-                    const skipAmountValue = parseFloat(skipAmountInput);
-                    // If the top merchant's price matches the skip amount, skip copying
-                    if (!isNaN(skipAmountValue) && topPrice === skipAmountValue) {
-                        document.getElementById('trackingStatus').innerHTML = `Skipped (Price matches threshold: ${topPrice})`;
-                        return;
-                    }
-                }
+                const skipValue = parseFloat(document.getElementById('skipAmount').value);
+                const target = pickCopyTarget(competitors, skipValue);
 
-                // Find currently selected local ad object
-                const currentAd = adsData.find(x => String(x.id) === String(adId));
-                const currentAdPrice = currentAd ? parseFloat(currentAd.price) : null;
-
-                // 2. CHECK PRICE: If top price is identical to our ad price or last copied price, STOP HERE.
-                if (topPrice === currentAdPrice || topPrice === lastCopiedPrice) {
-                    document.getElementById('trackingStatus').innerHTML = `Synced with #1 (${topPrice})`;
+                if (!target) {
+                    document.getElementById('trackingStatus').innerHTML = `Skipped (All top merchants match threshold ${skipValue})`;
                     return;
                 }
 
-                // 3. EXECUTE ONLY WHEN THERE IS A NEW PRICE AT THE TOP
-                document.getElementById('trackingStatus').innerHTML = `New top price (${topPrice}) detected! Updating...`;
+                const targetPrice = parseFloat(target.price);
+                const skippedAbove = target !== topMerchant;
 
-                // Save merchant history to DB only on price change
+                const currentAd = adsData.find(x => String(x.id) === String(adId));
+                const currentAdPrice = currentAd ? parseFloat(currentAd.price) : null;
+
+                if (targetPrice === currentAdPrice || targetPrice === lastCopiedPrice) {
+                    document.getElementById('trackingStatus').innerHTML = skippedAbove
+                        ? `Synced with next merchant (${targetPrice}) after skipping #1`
+                        : `Synced with #1 (${topPrice})`;
+                    return;
+                }
+
+                document.getElementById('trackingStatus').innerHTML = skippedAbove
+                    ? `Skipped #1 (${topPrice}), new price (${targetPrice}) detected! Updating...`
+                    : `New top price (${targetPrice}) detected! Updating...`;
+
                 try {
                     await fetch("{{ route('dashboard.com.store') }}", {
                         method: 'POST',
@@ -357,17 +366,16 @@
                             'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         },
                         body: JSON.stringify({
-                            merchant_id: topMerchant.id,
-                            username: topMerchant.nickName,
-                            price: topPrice
+                            merchant_id: target.id,
+                            username: target.nickName,
+                            price: targetPrice
                         })
                     });
                 } catch (err) {
                     console.log('Failed to log merchant history:', err);
                 }
 
-                // Send API request to update your Advertisement price
-                updateAdPrice(topPrice);
+                updateAdPrice(targetPrice);
 
             } catch (e) {
                 console.error('Topper Copier sync error:', e);
@@ -387,7 +395,6 @@
             updatingAd = true;
 
             while (true) {
-                // Stop trying if paused by user mid-retry
                 if (isPaused) {
                     updatingAd = false;
                     break;
@@ -453,7 +460,7 @@
             if (!isPaused && selectedToken && selectedCurrency) {
                 syncTopperCopier();
             }
-        }, 200);
+        }, 500);
 
     });
 </script>
