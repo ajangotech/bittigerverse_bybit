@@ -634,9 +634,9 @@ def notify_success(order):
 # 🚀 RUN APP
 # =========================
 def run_flask():
-  app.run(host="127.0.0.1", port=8080, debug=False)
+  app.run(host="127.0.0.1", port=8090, debug=False)
 
 
 if __name__ == "__main__":
   # Run directly in the main thread
-  app.run(host="127.0.0.1", port=8080, debug=False)
+  app.run(host="127.0.0.1", port=8090, debug=False)
