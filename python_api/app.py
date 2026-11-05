@@ -638,4 +638,5 @@ def run_flask():
 
 
 if __name__ == "__main__":
-  threading.Thread(target=run_flask).start()
+  # Run directly in the main thread
+  app.run(host="127.0.0.1", port=8080, debug=False)
