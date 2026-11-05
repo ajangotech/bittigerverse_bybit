@@ -177,6 +177,7 @@
 
         const trackingToggleBtn = document.getElementById('trackingToggleBtn');
 
+        // Refresh interval elements
         const topperIntervalSlider = document.getElementById('topperIntervalSlider');
         const topperIntervalLabel = document.getElementById('topperIntervalLabel');
         const marketIntervalSlider = document.getElementById('marketIntervalSlider');
@@ -185,6 +186,7 @@
         let adsData = [];
         let competitors = [];
 
+        // Special TOPPER-BTC Merchant Object
         let topperMerchant = {
             id: 'TOPPER-BTC',
             nickName: 'TOPPER-BTC',
@@ -206,9 +208,6 @@
         let paused = false;
         let updatingAd = false;
         let targetAdPrice = null;
-
-        // Single re-entrancy guard for ALL tracking logic
-        let trackingBusy = false;
         let plusFetching = false;
 
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -231,16 +230,7 @@
         function startPolling() {
             if (topperIntervalId) clearInterval(topperIntervalId);
             if (marketIntervalId) clearInterval(marketIntervalId);
-
-            // Only the topper loop drives tracking decisions.
-            topperIntervalId = setInterval(async () => {
-                await fetchTopperPrice();
-                if (tracking && selectedMerchantId) {
-                    runTrackingOnce();
-                }
-            }, topperIntervalSec * 1000);
-
-            // Market loop ONLY refreshes competitor list data — no tracking calls.
+            topperIntervalId = setInterval(fetchTopperPrice, topperIntervalSec * 1000);
             marketIntervalId = setInterval(() => {
                 if (selectedToken && selectedCurrency) {
                     fetchCompetitors();
@@ -248,23 +238,16 @@
             }, marketIntervalSec * 1000);
         }
 
-        // Use 'change' (fires once on release) instead of 'input' (fires every pixel)
-        topperIntervalSlider.addEventListener('change', () => {
+        topperIntervalSlider.addEventListener('input', () => {
             topperIntervalSec = parseFloat(topperIntervalSlider.value) || 0.2;
             topperIntervalLabel.innerHTML = `${topperIntervalSec.toFixed(1)} sec`;
             startPolling();
         });
-        topperIntervalSlider.addEventListener('input', () => {
-            topperIntervalLabel.innerHTML = `${(parseFloat(topperIntervalSlider.value) || 0.2).toFixed(1)} sec`;
-        });
 
-        marketIntervalSlider.addEventListener('change', () => {
+        marketIntervalSlider.addEventListener('input', () => {
             marketIntervalSec = parseFloat(marketIntervalSlider.value) || 0.2;
             marketIntervalLabel.innerHTML = `${marketIntervalSec.toFixed(1)} sec`;
             startPolling();
-        });
-        marketIntervalSlider.addEventListener('input', () => {
-            marketIntervalLabel.innerHTML = `${(parseFloat(marketIntervalSlider.value) || 0.2).toFixed(1)} sec`;
         });
 
         function activeTimerMs() {
@@ -351,13 +334,13 @@
 
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
 
-            await fetchTopperPrice();
+            fetchTopperPrice();
             await fetchCompetitors();
         });
 
         /*
         |--------------------------------------------------------------------------
-        | Fetch TOPPER-BTC Price — data only, NO tracking side-effects
+        | Fetch TOPPER-BTC Price (1-Second API Check)
         |--------------------------------------------------------------------------
         */
         async function fetchTopperPrice() {
@@ -369,22 +352,23 @@
             const ad = adsData.find(x => String(x.id) === String(adId));
             if (!ad) return;
 
-            const payload = {
-                api_key: API_KEY,
-                api_secret: API_SECRET,
-                id: ad.id,
-                price: "999999999",
-                priceType: ad.priceType !== undefined ? ad.priceType : 0,
-                premium: ad.premium !== undefined ? ad.premium : 0,
-                minAmount: ad.minAmount,
-                maxAmount: ad.maxAmount,
-                lastQuantity: ad.lastQuantity,
-                paymentPeriod: ad.paymentPeriod,
-                paymentTerms: ad.paymentTerms,
-                tradingPreferenceSet: ad.tradingPreferenceSet
-            };
-
             try {
+
+                const payload = {
+                    api_key: API_KEY,
+                    api_secret: API_SECRET,
+                    id: ad.id,
+                    price: "999999999", // Static price
+                    priceType: ad.priceType !== undefined ? ad.priceType : 0,
+                    premium: ad.premium !== undefined ? ad.premium : 0,
+                    minAmount: ad.minAmount,
+                    maxAmount: ad.maxAmount,
+                    lastQuantity: ad.lastQuantity,
+                    paymentPeriod: ad.paymentPeriod,
+                    paymentTerms: ad.paymentTerms,
+                    tradingPreferenceSet: ad.tradingPreferenceSet
+                };
+
                 const res = await fetch(`${API_URL}/ad-price-limit`, {
                     method: 'POST',
                     headers: {
@@ -397,20 +381,29 @@
                 const data = await res.json();
 
                 if (data && data.price) {
-                    const freshPrice = parseFloat(data.price);
-                    topperMerchant.price = freshPrice;
+                    topperMerchant.price = parseFloat(data.price);
 
                     const compIndex = competitors.findIndex(x => x.id === 'TOPPER-BTC');
                     if (compIndex > -1) {
-                        competitors[compIndex].price = freshPrice;
+                        competitors[compIndex].price = topperMerchant.price;
                     }
 
                     const topperOption = document.querySelector('option[value="TOPPER-BTC"]');
                     if (topperOption) {
-                        topperOption.dataset.price = freshPrice;
-                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${freshPrice}`;
+                        topperOption.dataset.price = topperMerchant.price;
+                        topperOption.innerHTML = `⭐ | TOPPER-BTC | ${topperMerchant.price}`;
+                    }
+
+                    if (tracking && selectedMerchantId === 'TOPPER-BTC') {
+                        if (plusModeToggle && plusModeToggle.checked) {
+                            trackMerchantPlus();
+                        } else {
+                            trackMerchantRatchet();
+                        }
                     }
                 }
+
+
             } catch (e) {
                 console.log("Failed to fetch Topper limit:", e);
             }
@@ -418,18 +411,28 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Fetch Competitors — refresh data only, NO tracking calls
+        | Fetch Competitors — Only TOPPER-BTC
         |--------------------------------------------------------------------------
         */
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
+
             competitors = [{ ...topperMerchant }];
+
             renderCompetitors();
+
+            if (tracking && selectedMerchantId) {
+                if (plusModeToggle && plusModeToggle.checked) {
+                    await trackMerchantPlus();
+                } else {
+                    await trackMerchantRatchet();
+                }
+            }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Render Competitors
+        | Render Competitors — Only TOPPER-BTC
         |--------------------------------------------------------------------------
         */
         function renderCompetitors() {
@@ -438,6 +441,7 @@
 
             competitors.forEach((merchant, index) => {
                 const displayPrefix = merchant.id === 'TOPPER-BTC' ? '⭐' : `#${index}`;
+
                 merchantSelect.innerHTML += ``
                     + `<option value="${merchant.id}" data-price="${merchant.price}" data-name="${merchant.nickName}" ${selected == merchant.id ? 'selected' : ''}>`
                     + `${displayPrefix} | ${merchant.nickName} | ${merchant.price}`
@@ -479,6 +483,7 @@
             }
 
             if (!tracking) {
+                // Start tracking
                 tracking = true;
                 paused = false;
                 lastSuccessfulUpdateTime = Date.now();
@@ -497,6 +502,7 @@
 
                 toast(`Tracking started for ${selectedMerchantName}`);
             } else {
+                // Stop tracking
                 tracking = false;
                 paused = true;
 
@@ -507,25 +513,6 @@
                 toast('Tracking stopped.', 'error');
             }
         });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Single entry point for tracking — guarded against re-entrancy
-        |--------------------------------------------------------------------------
-        */
-        async function runTrackingOnce() {
-            if (trackingBusy) return;
-            trackingBusy = true;
-            try {
-                if (plusModeToggle && plusModeToggle.checked) {
-                    await trackMerchantPlus();
-                } else {
-                    await trackMerchantRatchet();
-                }
-            } finally {
-                trackingBusy = false;
-            }
-        }
 
         /*
         |--------------------------------------------------------------------------
@@ -619,10 +606,12 @@
 
         /*
         |--------------------------------------------------------------------------
-        | Track Merchant Plus Mode
+        | Track Merchant Plus Mode — Timer re-fetches TOPPER, Price Only Goes Up
         |--------------------------------------------------------------------------
         */
         async function trackMerchantPlus() {
+            if (plusFetching) return;
+
             const plusTimerMs = activeTimerMs();
             const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
 
@@ -648,7 +637,6 @@
                 }
 
                 if (timeSinceLastUpdate >= plusTimerMs) {
-                    if (plusFetching) return;
                     plusFetching = true;
                     document.getElementById('trackingStatus').innerHTML = '<span class="text-warning fw-bold">Timer Expired! Re-fetching TOPPER...</span>';
                     toast('Timer expired! Re-fetching TOPPER price...', 'success');
@@ -657,24 +645,21 @@
                         const freshPrice = await fetchTopperPriceDirect();
 
                         if (freshPrice !== null && !isNaN(freshPrice)) {
-                            // Compare BEFORE overwriting lastMerchantPrice (was a bug)
+                            lastMerchantPrice = freshPrice;
                             if (freshPrice > lastMerchantPrice) {
                                 document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Re-fetched! Syncing to ${freshPrice}</span>`;
                             } else {
                                 document.getElementById('trackingStatus').innerHTML = `<span class="text-success fw-bold">Timer Resync to ${freshPrice}</span>`;
                             }
-                            lastMerchantPrice = freshPrice;
-                            lastSuccessfulUpdateTime = Date.now();
                             await updateAdPrice(freshPrice);
-                        } else {
-                            lastSuccessfulUpdateTime = Date.now();
                         }
                     } catch (e) {
                         console.log("Failed to re-fetch Topper limit on timer expiry:", e);
-                        lastSuccessfulUpdateTime = Date.now();
                     } finally {
                         plusFetching = false;
                     }
+
+                    lastSuccessfulUpdateTime = Date.now();
                     return;
                 }
 
@@ -761,9 +746,12 @@
         | Intervals / Polling Loops
         |--------------------------------------------------------------------------
         */
+
+        // 1. Fetch TOPPER Limit Price (interval managed by slider)
+        // 2. Market Poll Loop (interval managed by slider)
         startPolling();
 
-        // Visual Countdown Timer UI Loop every 1 second
+        // 3. Visual Countdown Timer UI Loop every 1 second
         setInterval(() => {
             if (tracking && selectedMerchantId && plusModeToggle && plusModeToggle.checked) {
                 const plusTimerMs = activeTimerMs();
