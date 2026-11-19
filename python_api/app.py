@@ -113,6 +113,26 @@ def _store_price_limit(ad_id, payload):
     _price_limit_cache[ad_id] = {"ts": time.time(), "payload": payload}
 
 
+# =========================
+# 🗄️ ANALYZE-MARKET CACHE + LOCK
+# =========================
+_ANALYZE_MARKET_TTL = 10  # seconds before re-probing Bybit
+_analyze_market_cache = {}  # cache_key -> {"ts": epoch, "payload": {...}}
+_analyze_market_lock = threading.Lock()
+_analyze_market_stats = {"bybit_calls": 0, "cache_hits": 0}
+
+
+def _cached_analyze_market(cache_key):
+    entry = _analyze_market_cache.get(cache_key)
+    if entry and (time.time() - entry["ts"]) < _ANALYZE_MARKET_TTL:
+        return entry["payload"]
+    return None
+
+
+def _store_analyze_market(cache_key, payload):
+    _analyze_market_cache[cache_key] = {"ts": time.time(), "payload": payload}
+
+
 @app.route("/", methods=["GET"])
 def home():
     return jsonify(
@@ -432,121 +452,154 @@ def pending_orders(data):
 @app.route("/api/analyze-market", methods=["POST"])
 @require_api_keys
 def analyze_market(data):
-    try:
-        api = get_api(data)
+    token_id = data.get("tokenId", "BTC")
+    currency_id = data.get("currencyId", "USD")
+    side = str(data.get("side", "0"))
+    min_amount = float(data.get("minAmount", 0))
+    margin_pct = float(data.get("marginPct", 4))
+    sort_by = str(data.get("sortBy", "price")).lower()
 
-        token_id = data.get("tokenId", "BTC")
-        currency_id = data.get("currencyId", "USD")
-        side = str(data.get("side", "0"))
-        min_amount = float(data.get("minAmount", 0))
-        margin_pct = float(data.get("marginPct", 4))
-        sort_by = str(data.get("sortBy", "price")).lower()
+    cache_key = (token_id, currency_id, side, min_amount, margin_pct, sort_by)
 
-        ads = api.get_online_ads(
-            tokenId=token_id,
-            currencyId=currency_id,
-            side=side,
-            size="30",
-            vaMaker=True,
-            authMaker=False,
-            bulkMaker=False,
-            canTrade=False,
-            verificationFilter=0,
-            sortType="OVERALL_RANKING",
-            sortStrategyCode="DEFAULT_BUY",
-            itemRegion=1,
-            tradeWith=False,
+    # Fast path: fresh cache, no Bybit call at all
+    cached = _cached_analyze_market(cache_key)
+    if cached is not None:
+        _analyze_market_stats["cache_hits"] += 1
+        app.logger.info(
+            f"[analyze-market] CACHE HIT for {cache_key} "
+            f"(bybit_calls={_analyze_market_stats['bybit_calls']}, "
+            f"cache_hits={_analyze_market_stats['cache_hits']})"
+        )
+        return jsonify(cached)
+
+    # Slow path: one caller probes, the rest wait for the cache
+    with _analyze_market_lock:
+        cached = _cached_analyze_market(cache_key)
+        if cached is not None:
+            _analyze_market_stats["cache_hits"] += 1
+            app.logger.info(
+                f"[analyze-market] CACHE HIT (post-lock) for {cache_key} "
+                f"(bybit_calls={_analyze_market_stats['bybit_calls']}, "
+                f"cache_hits={_analyze_market_stats['cache_hits']})"
+            )
+            return jsonify(cached)
+
+        _analyze_market_stats["bybit_calls"] += 1
+        app.logger.info(
+            f"[analyze-market] BYBIT CALL #{_analyze_market_stats['bybit_calls']} "
+            f"for {cache_key}"
         )
 
-        items = []
-        if isinstance(ads, dict):
-            items = ads.get("result", {}).get("items", [])
+        try:
+            api = get_api(data)
 
-        competitors = []
-        for ad in items:
-            try:
-                price = float(ad.get("price", 0))
-                if price <= 0:
+            ads = api.get_online_ads(
+                tokenId=token_id,
+                currencyId=currency_id,
+                side=side,
+                size="30",
+                vaMaker=True,
+                authMaker=False,
+                bulkMaker=False,
+                canTrade=False,
+                verificationFilter=0,
+                sortType="OVERALL_RANKING",
+                sortStrategyCode="DEFAULT_BUY",
+                itemRegion=1,
+                tradeWith=False,
+            )
+
+            items = []
+            if isinstance(ads, dict):
+                items = ads.get("result", {}).get("items", [])
+
+            competitors = []
+            for ad in items:
+                try:
+                    price = float(ad.get("price", 0))
+                    if price <= 0:
+                        continue
+
+                    ad_min = float(ad.get("minAmount", 0))
+                    ad_max = float(ad.get("maxAmount", 0))
+
+                    if min_amount > 0 and ad_max < min_amount:
+                        continue
+
+                    raw_orders = ad.get("recentOrderNum", 0)
+                    try:
+                        recent_orders = int(raw_orders) if raw_orders is not None else 0
+                    except (ValueError, TypeError):
+                        recent_orders = 0
+
+                    raw_rate = ad.get("recentExecuteRate", 0)
+                    try:
+                        recent_rate = (
+                            float(str(raw_rate).replace("%", "").strip())
+                            if raw_rate is not None
+                            else 0.0
+                        )
+                    except (ValueError, TypeError):
+                        recent_rate = 0.0
+
+                    competitors.append({
+                        "id": ad.get("id"),
+                        "nickName": ad.get("nickName"),
+                        "price": price,
+                        "minAmount": ad_min,
+                        "maxAmount": ad_max,
+                        "quantity": ad.get("quantity"),
+                        "recentOrderNum": recent_orders,
+                        "recentExecuteRate": recent_rate,
+                        "paymentPeriod": ad.get("paymentPeriod"),
+                    })
+                except Exception:
                     continue
 
-                ad_min = float(ad.get("minAmount", 0))
-                ad_max = float(ad.get("maxAmount", 0))
+            if not competitors:
+                return jsonify(
+                    {"status": False, "error": "No valid competitor ads found"}
+                ), 404
 
-                if min_amount > 0 and ad_max < min_amount:
-                    continue
+            if side == "0":
+                top_competitor_price = max(c["price"] for c in competitors)
+                recommended_price = top_competitor_price * (1 + (margin_pct / 100))
+            else:
+                top_competitor_price = min(c["price"] for c in competitors)
+                recommended_price = top_competitor_price * (1 - (margin_pct / 100))
 
-                raw_orders = ad.get("recentOrderNum", 0)
-                try:
-                    recent_orders = int(raw_orders) if raw_orders is not None else 0
-                except (ValueError, TypeError):
-                    recent_orders = 0
+            if sort_by == "orders":
+                competitors = sorted(
+                    competitors, key=lambda x: x["recentOrderNum"], reverse=True
+                )
+            elif sort_by == "completion_rate":
+                competitors = sorted(
+                    competitors, key=lambda x: x["recentExecuteRate"], reverse=True
+                )
+            else:
+                competitors = sorted(
+                    competitors, key=lambda x: x["price"], reverse=(side == "0")
+                )
 
-                raw_rate = ad.get("recentExecuteRate", 0)
-                try:
-                    recent_rate = (
-                        float(str(raw_rate).replace("%", "").strip())
-                        if raw_rate is not None
-                        else 0.0
-                    )
-                except (ValueError, TypeError):
-                    recent_rate = 0.0
+            top_10 = competitors[:30]
 
-                competitors.append({
-                    "id": ad.get("id"),
-                    "nickName": ad.get("nickName"),
-                    "price": price,
-                    "minAmount": ad_min,
-                    "maxAmount": ad_max,
-                    "quantity": ad.get("quantity"),
-                    "recentOrderNum": recent_orders,
-                    "recentExecuteRate": recent_rate,
-                    "paymentPeriod": ad.get("paymentPeriod"),
-                })
-            except Exception:
-                continue
+            payload = {
+                "status": True,
+                "tokenId": token_id,
+                "currencyId": currency_id,
+                "side": side,
+                "sort_by": sort_by,
+                "ads_found": len(competitors),
+                "top_competitor_price": round(top_competitor_price, 2),
+                "margin_percent": margin_pct,
+                "recommended_price": round(recommended_price, 2),
+                "top_10_competitors": top_10,
+            }
+            _store_analyze_market(cache_key, payload)
+            return jsonify(payload)
 
-        if not competitors:
-            return jsonify(
-                {"status": False, "error": "No valid competitor ads found"}
-            ), 404
-
-        if side == "0":
-            top_competitor_price = max(c["price"] for c in competitors)
-            recommended_price = top_competitor_price * (1 + (margin_pct / 100))
-        else:
-            top_competitor_price = min(c["price"] for c in competitors)
-            recommended_price = top_competitor_price * (1 - (margin_pct / 100))
-
-        if sort_by == "orders":
-            competitors = sorted(
-                competitors, key=lambda x: x["recentOrderNum"], reverse=True
-            )
-        elif sort_by == "completion_rate":
-            competitors = sorted(
-                competitors, key=lambda x: x["recentExecuteRate"], reverse=True
-            )
-        else:
-            competitors = sorted(
-                competitors, key=lambda x: x["price"], reverse=(side == "0")
-            )
-
-        top_10 = competitors[:30]
-
-        return jsonify({
-            "status": True,
-            "tokenId": token_id,
-            "currencyId": currency_id,
-            "side": side,
-            "sort_by": sort_by,
-            "ads_found": len(competitors),
-            "top_competitor_price": round(top_competitor_price, 2),
-            "margin_percent": margin_pct,
-            "recommended_price": round(recommended_price, 2),
-            "top_10_competitors": top_10,
-        })
-
-    except Exception as e:
-        return jsonify({"status": False, "error": str(e)}), 500
+        except Exception as e:
+            return jsonify({"status": False, "error": str(e)}), 500
 
 
 # =========================
@@ -590,7 +643,7 @@ def mark_as_paid(data):
 # =========================
 if __name__ == "__main__":
     print("=" * 60)
-    print("  ByBit P2P API — v2.0 with price-limit cache")
+    print("  ByBit P2P API — v2.0 with price-limit & market cache")
     print("  Cache TTL: 10s  |  Library logger: SILENCED")
     print("  Restart this server to load code changes!")
     print("=" * 60)
