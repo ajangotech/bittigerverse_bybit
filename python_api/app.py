@@ -107,6 +107,37 @@ def _store(cache, key, payload):
 
 
 # =========================
+# 🗄️ UPDATE-AD COOLDOWN + LOCK
+# =========================
+# The frontend fires update-ad whenever the tracked merchant price moves and
+# also retries every 1 second on failure. Without a cooldown, overlapping and
+# rapid-fire requests hit Bybit's mutating endpoint back-to-back and trigger
+# ErrCode 10006 ("Too many visits"). The cooldown enforces a minimum gap
+# between real Bybit write calls per ad; requests arriving inside the window
+# are coalesced — the in-flight call is awaited (lock) and its result is
+# served to all waiters instead of issuing another write.
+_UPDATE_AD_COOLDOWN = 3  # seconds between real Bybit update calls per ad
+_update_ad_last_call = {}  # ad_id -> epoch ts of last Bybit write
+_update_ad_locks = {}  # ad_id -> per-ad threading.Lock
+_update_ad_locks_guard = threading.Lock()  # guards creation of per-ad locks
+_update_ad_last_result = {}  # ad_id -> {"ts": epoch, "payload": {...}}
+_update_ad_stats = {"bybit_calls": 0, "coalesced": 0, "rate_limited": 0}
+
+
+def _update_ad_lock_for(ad_id):
+    with _update_ad_locks_guard:
+        lock = _update_ad_locks.get(ad_id)
+        if lock is None:
+            lock = threading.Lock()
+            _update_ad_locks[ad_id] = lock
+        return lock
+
+
+def _is_rate_limit_error(error_message):
+    return "10006" in error_message or "Too many visits" in error_message
+
+
+# =========================
 # 🗄️ PRICE-LIMIT CACHE + LOCK
 # =========================
 # The frontend polls /api/ad-price-limit every ~1s. Without caching, each poll
@@ -173,34 +204,98 @@ def home():
 # =========================
 # 📢 UPDATE AD
 # =========================
+# Strategy (mirrors the price-limit / market-analysis caching pattern):
+#  1. If a request for the same ad is already in flight, wait for it and
+#     return its result (coalescing) instead of issuing another Bybit write.
+#  2. If the last successful write for this ad was less than
+#     _UPDATE_AD_COOLDOWN seconds ago, return the cached last result
+#     (cooldown) — the price hasn't had time to move meaningfully.
+#  3. Otherwise perform ONE Bybit update_ad call under a per-ad lock.
+#  4. On Bybit rate-limit (ErrCode 10006), return HTTP 429 so the frontend
+#     can back off instead of hammering every 1 second.
 @app.route("/api/update-ad", methods=["POST"])
 @require_api_keys
 def update_ad(data):
-    try:
-        api = get_api(data)
+    ad_id = data.get("id")
+    if not ad_id:
+        return jsonify({"status": False, "error": "Ad id is required"}), 400
 
-        payment_ids = extract_payment_ids(data)
-        trading_pref = build_trading_pref(data.get("tradingPreferenceSet"))
+    ad_lock = _update_ad_lock_for(ad_id)
 
-        result = api.update_ad(
-            id=data.get("id"),
-            priceType=int(data.get("priceType", 0)),
-            premium=float(data.get("premium", 0)),
-            price=float(data.get("price")),
-            minAmount=float(data.get("minAmount")),
-            maxAmount=float(data.get("maxAmount")),
-            remark=data.get("remark", ""),
-            tradingPreferenceSet=trading_pref,
-            paymentIds=payment_ids,
-            actionType="MODIFY",
-            quantity=str(data.get("quantity") or data.get("lastQuantity", "1")),
-            paymentPeriod=int(data.get("paymentPeriod", 15)),
+    requested_price = str(data.get("price", ""))
+
+    with ad_lock:
+        # Cooldown: serve last result ONLY if the price is the same and we
+        # just wrote to Bybit for this ad. A different price is a genuine
+        # update and must always go through to Bybit.
+        last = _update_ad_last_result.get(ad_id)
+        if (
+            last
+            and (time.time() - last["ts"]) < _UPDATE_AD_COOLDOWN
+            and str(last["payload"].get("_requested_price", "")) == requested_price
+        ):
+            _update_ad_stats["coalesced"] += 1
+            app.logger.info(
+                f"[update-ad] COOLDOWN HIT (same price) for ad {ad_id} "
+                f"(bybit_calls={_update_ad_stats['bybit_calls']}, "
+                f"coalesced={_update_ad_stats['coalesced']})"
+            )
+            return jsonify(last["payload"])
+
+        _update_ad_stats["bybit_calls"] += 1
+        app.logger.info(
+            f"[update-ad] BYBIT CALL #{_update_ad_stats['bybit_calls']} "
+            f"for ad {ad_id}"
         )
 
-        return jsonify(result)
+        try:
+            api = get_api(data)
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+            payment_ids = extract_payment_ids(data)
+            trading_pref = build_trading_pref(data.get("tradingPreferenceSet"))
+
+            result = api.update_ad(
+                id=ad_id,
+                priceType=int(data.get("priceType", 0)),
+                premium=float(data.get("premium", 0)),
+                price=float(data.get("price")),
+                minAmount=float(data.get("minAmount")),
+                maxAmount=float(data.get("maxAmount")),
+                remark=data.get("remark", ""),
+                tradingPreferenceSet=trading_pref,
+                paymentIds=payment_ids,
+                actionType="MODIFY",
+                quantity=str(data.get("quantity") or data.get("lastQuantity", "1")),
+                paymentPeriod=int(data.get("paymentPeriod", 15)),
+            )
+
+            payload = result if isinstance(result, dict) else {"status": True, "result": result}
+            # Store the price we actually wrote so the cooldown can compare
+            # against it and skip only when the same price is re-sent.
+            if isinstance(payload, dict):
+                payload["_requested_price"] = requested_price
+            _update_ad_last_result[ad_id] = {"ts": time.time(), "payload": payload}
+            return jsonify(payload)
+
+        except Exception as e:
+            error_message = str(e)
+
+            if _is_rate_limit_error(error_message):
+                _update_ad_stats["rate_limited"] += 1
+                app.logger.warning(
+                    f"[update-ad] RATE LIMITED for ad {ad_id} "
+                    f"(rate_limited={_update_ad_stats['rate_limited']})"
+                )
+                # Serve last successful result if we have one (better than
+                # an error), otherwise return 429 so the frontend backs off.
+                last = _update_ad_last_result.get(ad_id)
+                if last:
+                    return jsonify(last["payload"])
+                return jsonify(
+                    {"status": False, "error": "Rate limited by Bybit. Please retry shortly."}
+                ), 429
+
+            return jsonify({"error": error_message}), 500
 
 
 # =========================
