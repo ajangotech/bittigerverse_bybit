@@ -264,9 +264,9 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Load Advertisements
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         async function loadAds() {
             try {
@@ -294,9 +294,9 @@
         loadAds();
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Advertisement Selected
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         adsSelect.addEventListener('change', async function () {
             const ad = adsData.find(x => String(x.id) === String(this.value));
@@ -339,9 +339,9 @@
         });
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Fetch TOPPER-BTC Price (1-Second API Check)
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         async function fetchTopperPrice() {
             if (!selectedToken || !selectedCurrency) return;
@@ -410,9 +410,9 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Fetch Competitors — Only TOPPER-BTC
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         async function fetchCompetitors() {
             if (!selectedToken || !selectedCurrency) return;
@@ -431,9 +431,9 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Render Competitors — Only TOPPER-BTC
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         function renderCompetitors() {
             const selected = selectedMerchantId;
@@ -450,9 +450,9 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Merchant Selected
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         merchantSelect.addEventListener('change', async function () {
             const option = this.options[this.selectedIndex];
@@ -515,9 +515,9 @@
         });
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Track Merchant Ratchet (Standard Mode) — Price Only Goes Up
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         async function trackMerchantRatchet() {
             const merchant = competitors.find(x => String(x.id) === String(selectedMerchantId));
@@ -545,9 +545,9 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Direct fetch of TOPPER price limit (no side-effects, no re-entrancy)
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         async function fetchTopperPriceDirect() {
             const adId = document.getElementById('adId').value;
@@ -605,9 +605,9 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Track Merchant Plus Mode — Timer re-fetches TOPPER, Price Only Goes Up
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
         async function trackMerchantPlus() {
             if (plusFetching) return;
@@ -689,16 +689,47 @@
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | Update Advertisement (With 1-Second Auto-Retry)
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
+        | Update Advertisement (With Exponential Backoff Retry)
+        |------------------------------------------------------------------------
+        | The old version used `while (true)` with a fixed 1-second sleep, which
+        | hammered Bybit every second on failure and made rate-limiting worse.
+        | This version:
+        |   - Bails immediately if a newer price target supersedes this one.
+        |   - Retries with exponential backoff: 2s, 4s, 8s, 16s, 32s (max 5).
+        |   - Stops retrying if tracking was turned off.
+        |   - Skips the request entirely if the target price hasn't changed
+        |     since the last successful update (no duplicate writes).
+        |------------------------------------------------------------------------
         */
         async function updateAdPrice(newPrice) {
             targetAdPrice = newPrice;
             if (updatingAd) return;
             updatingAd = true;
 
-            while (true) {
+            let lastUpdatedPrice = null;
+            let retryDelay = 2000; // start at 2 seconds
+            const maxRetries = 5;
+
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+                // Bail if tracking was stopped
+                if (!tracking) {
+                    updatingAd = false;
+                    return;
+                }
+
+                // Bail if a newer price target superseded this one
+                if (targetAdPrice !== newPrice) {
+                    updatingAd = false;
+                    return;
+                }
+
+                // Skip if the price hasn't changed since the last successful write
+                if (lastUpdatedPrice === newPrice) {
+                    updatingAd = false;
+                    return;
+                }
+
                 const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
                 if (!ad) {
                     updatingAd = false;
@@ -725,26 +756,42 @@
 
                     if (res.ok && !result.error) {
                         ad.price = priceToUpdate;
+                        lastUpdatedPrice = priceToUpdate;
                         document.getElementById('currentPrice').innerHTML = priceToUpdate;
                         toast(`Ad updated to ${priceToUpdate}`);
 
-                        if (targetAdPrice === priceToUpdate) break;
+                        // If target hasn't changed, we're done
+                        if (targetAdPrice === priceToUpdate) {
+                            updatingAd = false;
+                            return;
+                        }
+                        // Target changed — loop again with the new target
+                        newPrice = targetAdPrice;
+                        retryDelay = 2000;
                     } else {
-                        toast('Retrying in 1 second...', 'error');
-                        await sleep(1000);
+                        // 429 = rate limited, or other error — back off
+                        toast(`Update failed, retrying in ${retryDelay / 1000}s...`, 'error');
+                        await sleep(retryDelay);
+                        retryDelay = Math.min(retryDelay * 2, 32000);
                     }
                 } catch (e) {
-                    toast('Network error. Retrying in 1 second...', 'error');
-                    await sleep(1000);
+                    toast(`Network error, retrying in ${retryDelay / 1000}s...`, 'error');
+                    await sleep(retryDelay);
+                    retryDelay = Math.min(retryDelay * 2, 32000);
                 }
+            }
+
+            // Exhausted retries
+            if (tracking) {
+                toast('Ad update failed after multiple retries. Will try again on next price change.', 'error');
             }
             updatingAd = false;
         }
 
         /*
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         | Intervals / Polling Loops
-        |--------------------------------------------------------------------------
+        |------------------------------------------------------------------------
         */
 
         // 1. Fetch TOPPER Limit Price (interval managed by slider)
