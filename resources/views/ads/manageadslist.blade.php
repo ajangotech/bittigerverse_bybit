@@ -149,12 +149,11 @@
         const filterBtn = document.getElementById("filterBtn");
         const marketTableBody = document.getElementById("marketTableBody");
 
-
-
         let selectedToken = "USDT";
         let selectedCurrency = "USD";
         let selectedSortBy = "price";
         let timer = null;
+        let isFetching = false;
 
         function showToast(msg, type = "success") {
             const toast = document.getElementById("toast");
@@ -165,15 +164,14 @@
             }, 2000);
         }
 
-
-
         async function fetchMarket() {
+            if (isFetching) return;
+            isFetching = true;
             try {
                 const res = await fetch(`${API_URL}/analyze-market`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-
                         api_key: API_KEY,
                         api_secret: API_SECRET,
                         tokenId: selectedToken,
@@ -183,16 +181,11 @@
                         marginPct: 4,
                         limit: 30,
                         sortBy: selectedSortBy
-
                     })
-
                 });
-
-
 
                 const data = await res.json();
 
-                // Make sure to access the correct array depending on your Python endpoint's JSON response format
                 const items = data.top_10_competitors || data;
 
                 if (!items || (data.status === false && !data.top_10_competitors) || data.error) {
@@ -204,6 +197,8 @@
             } catch (err) {
                 console.error(err);
                 showToast("Network error", "error");
+            } finally {
+                isFetching = false;
             }
         }
 
@@ -233,8 +228,6 @@
             });
         }
 
-
-
         filterBtn.addEventListener("click", function () {
             selectedToken = tokenSelect.value;
             selectedCurrency = currencySelect.value;
@@ -248,15 +241,22 @@
 
         function startLive() {
             if (timer) {
-                clearInterval(timer);
+                clearTimeout(timer);
+                timer = null;
             }
-            fetchMarket();
-            timer = setInterval(() => {
-                fetchMarket();
-            }, 2000);
+            poll();
+        }
+
+        function poll() {
+            if (isFetching) {
+                timer = setTimeout(poll, 1000);
+                return;
+            }
+            fetchMarket().finally(() => {
+                timer = setTimeout(poll, 10000);
+            });
         }
         startLive();
     });
 
 </script>
-
