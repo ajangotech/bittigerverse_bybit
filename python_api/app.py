@@ -18,7 +18,7 @@ load_dotenv()
 app = Flask(__name__)
 application = app
 
-#CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 
 # =========================
@@ -89,6 +89,24 @@ def extract_payment_ids(data):
 
 
 # =========================
+# 🗄️ SHARED CACHE UTILITIES
+# =========================
+def _cache_key(*parts):
+    return "|".join(str(p) for p in parts)
+
+
+def _cached(cache, key, ttl):
+    entry = cache.get(key)
+    if entry and (time.time() - entry["ts"]) < ttl:
+        return entry["payload"]
+    return None
+
+
+def _store(cache, key, payload):
+    cache[key] = {"ts": time.time(), "payload": payload}
+
+
+# =========================
 # 🗄️ PRICE-LIMIT CACHE + LOCK
 # =========================
 # The frontend polls /api/ad-price-limit every ~1s. Without caching, each poll
@@ -103,34 +121,46 @@ _price_limit_stats = {"bybit_calls": 0, "cache_hits": 0}
 
 
 def _cached_price_limit(ad_id):
-    entry = _price_limit_cache.get(ad_id)
-    if entry and (time.time() - entry["ts"]) < _PRICE_LIMIT_TTL:
-        return entry["payload"]
-    return None
+    return _cached(_price_limit_cache, ad_id, _PRICE_LIMIT_TTL)
 
 
 def _store_price_limit(ad_id, payload):
-    _price_limit_cache[ad_id] = {"ts": time.time(), "payload": payload}
+    _store(_price_limit_cache, ad_id, payload)
 
 
 # =========================
-# 🗄️ ANALYZE-MARKET CACHE + LOCK
+# 🗄️ MARKET ANALYSIS CACHE + LOCK
 # =========================
-_ANALYZE_MARKET_TTL = 10  # seconds before re-probing Bybit
-_analyze_market_cache = {}  # cache_key -> {"ts": epoch, "payload": {...}}
-_analyze_market_lock = threading.Lock()
-_analyze_market_stats = {"bybit_calls": 0, "cache_hits": 0}
+# Same pattern as the price-limit cache: the frontend polls
+# /api/analyze-market frequently, and each call hits Bybit's
+# /v5/p2p/item/online endpoint. Without deduplication this triggers
+# ErrCode 10006 ("Too many visits. exceeded the api rate limit"). The cache
+# keys on token+currency+side+minAmount+marginPct+sortBy so identical
+# concurrent polls share ONE Bybit probe, and serves cached results for
+# MARKET_ANALYSIS_TTL seconds.
+_MARKET_ANALYSIS_TTL = 15  # seconds before re-probing Bybit
+_market_analysis_cache = {}  # key -> {"ts": epoch, "payload": {...}}
+_market_analysis_lock = threading.Lock()
+_market_analysis_stats = {"bybit_calls": 0, "cache_hits": 0}
 
 
-def _cached_analyze_market(cache_key):
-    entry = _analyze_market_cache.get(cache_key)
-    if entry and (time.time() - entry["ts"]) < _ANALYZE_MARKET_TTL:
-        return entry["payload"]
-    return None
+def _market_analysis_cache_key(data):
+    return _cache_key(
+        data.get("tokenId", "BTC"),
+        data.get("currencyId", "USD"),
+        str(data.get("side", "0")),
+        str(data.get("minAmount", 0)),
+        str(data.get("marginPct", 4)),
+        str(data.get("sortBy", "price")).lower(),
+    )
 
 
-def _store_analyze_market(cache_key, payload):
-    _analyze_market_cache[cache_key] = {"ts": time.time(), "payload": payload}
+def _cached_market_analysis(key):
+    return _cached(_market_analysis_cache, key, _MARKET_ANALYSIS_TTL)
+
+
+def _store_market_analysis(key, payload):
+    _store(_market_analysis_cache, key, payload)
 
 
 @app.route("/", methods=["GET"])
@@ -449,50 +479,56 @@ def pending_orders(data):
 # =========================
 # 📊 MARKET ANALYSIS
 # =========================
+# Strategy (mirrors /api/ad-price-limit):
+#  1. Serve cached results if fresh (< _MARKET_ANALYSIS_TTL seconds old).
+#  2. Otherwise acquire a lock keyed on the analysis parameters so
+#     overlapping concurrent requests share a SINGLE Bybit probe (the rest
+#     wait, then read the cache).
+#  3. One Bybit API call per TTL window — no flood, no rate-limit (10006).
 @app.route("/api/analyze-market", methods=["POST"])
 @require_api_keys
 def analyze_market(data):
-    token_id = data.get("tokenId", "BTC")
-    currency_id = data.get("currencyId", "USD")
-    side = str(data.get("side", "0"))
-    min_amount = float(data.get("minAmount", 0))
-    margin_pct = float(data.get("marginPct", 4))
-    sort_by = str(data.get("sortBy", "price")).lower()
+    try:
+        token_id = data.get("tokenId", "BTC")
+        currency_id = data.get("currencyId", "USD")
+        side = str(data.get("side", "0"))
+        min_amount = float(data.get("minAmount", 0))
+        margin_pct = float(data.get("marginPct", 4))
+        sort_by = str(data.get("sortBy", "price")).lower()
 
-    cache_key = (token_id, currency_id, side, min_amount, margin_pct, sort_by)
+        cache_key = _market_analysis_cache_key(data)
 
-    # Fast path: fresh cache, no Bybit call at all
-    cached = _cached_analyze_market(cache_key)
-    if cached is not None:
-        _analyze_market_stats["cache_hits"] += 1
-        app.logger.info(
-            f"[analyze-market] CACHE HIT for {cache_key} "
-            f"(bybit_calls={_analyze_market_stats['bybit_calls']}, "
-            f"cache_hits={_analyze_market_stats['cache_hits']})"
-        )
-        return jsonify(cached)
-
-    # Slow path: one caller probes, the rest wait for the cache
-    with _analyze_market_lock:
-        cached = _cached_analyze_market(cache_key)
+        # Fast path: fresh cache, no Bybit call at all
+        cached = _cached_market_analysis(cache_key)
         if cached is not None:
-            _analyze_market_stats["cache_hits"] += 1
+            _market_analysis_stats["cache_hits"] += 1
             app.logger.info(
-                f"[analyze-market] CACHE HIT (post-lock) for {cache_key} "
-                f"(bybit_calls={_analyze_market_stats['bybit_calls']}, "
-                f"cache_hits={_analyze_market_stats['cache_hits']})"
+                f"[analyze-market] CACHE HIT for key {cache_key} "
+                f"(bybit_calls={_market_analysis_stats['bybit_calls']}, "
+                f"cache_hits={_market_analysis_stats['cache_hits']})"
             )
             return jsonify(cached)
 
-        _analyze_market_stats["bybit_calls"] += 1
-        app.logger.info(
-            f"[analyze-market] BYBIT CALL #{_analyze_market_stats['bybit_calls']} "
-            f"for {cache_key}"
-        )
+        # Slow path: one caller probes, the rest wait for the cache
+        with _market_analysis_lock:
+            # Re-check inside the lock (another request may have just filled it)
+            cached = _cached_market_analysis(cache_key)
+            if cached is not None:
+                _market_analysis_stats["cache_hits"] += 1
+                app.logger.info(
+                    f"[analyze-market] CACHE HIT (post-lock) for key {cache_key} "
+                    f"(bybit_calls={_market_analysis_stats['bybit_calls']}, "
+                    f"cache_hits={_market_analysis_stats['cache_hits']})"
+                )
+                return jsonify(cached)
 
-        try:
+            _market_analysis_stats["bybit_calls"] += 1
+            app.logger.info(
+                f"[analyze-market] BYBIT CALL "
+                f"#{_market_analysis_stats['bybit_calls']} for key {cache_key}"
+            )
+
             api = get_api(data)
-
             ads = api.get_online_ads(
                 tokenId=token_id,
                 currencyId=currency_id,
@@ -557,9 +593,12 @@ def analyze_market(data):
                     continue
 
             if not competitors:
-                return jsonify(
-                    {"status": False, "error": "No valid competitor ads found"}
-                ), 404
+                payload = {
+                    "status": False,
+                    "error": "No valid competitor ads found",
+                }
+                # Don't cache the "no ads" miss — let the next request retry
+                return jsonify(payload), 404
 
             if side == "0":
                 top_competitor_price = max(c["price"] for c in competitors)
@@ -595,11 +634,11 @@ def analyze_market(data):
                 "recommended_price": round(recommended_price, 2),
                 "top_10_competitors": top_10,
             }
-            _store_analyze_market(cache_key, payload)
+            _store_market_analysis(cache_key, payload)
             return jsonify(payload)
 
-        except Exception as e:
-            return jsonify({"status": False, "error": str(e)}), 500
+    except Exception as e:
+        return jsonify({"status": False, "error": str(e)}), 500
 
 
 # =========================
@@ -643,8 +682,9 @@ def mark_as_paid(data):
 # =========================
 if __name__ == "__main__":
     print("=" * 60)
-    print("  ByBit P2P API — v2.0 with price-limit & market cache")
-    print("  Cache TTL: 10s  |  Library logger: SILENCED")
+    print("  ByBit P2P API — v2.1 with price-limit + market-analysis cache")
+    print("  Price-limit TTL: 10s  |  Market-analysis TTL: 15s")
+    print("  Library logger: SILENCED")
     print("  Restart this server to load code changes!")
     print("=" * 60)
     app.run(host="127.0.0.1", port=8090, debug=False)
