@@ -89,55 +89,6 @@ def extract_payment_ids(data):
 
 
 # =========================
-# 🗄️ SHARED CACHE UTILITIES
-# =========================
-def _cache_key(*parts):
-    return "|".join(str(p) for p in parts)
-
-
-def _cached(cache, key, ttl):
-    entry = cache.get(key)
-    if entry and (time.time() - entry["ts"]) < ttl:
-        return entry["payload"]
-    return None
-
-
-def _store(cache, key, payload):
-    cache[key] = {"ts": time.time(), "payload": payload}
-
-
-# =========================
-# 🗄️ UPDATE-AD COOLDOWN + LOCK
-# =========================
-# The frontend fires update-ad whenever the tracked merchant price moves and
-# also retries every 1 second on failure. Without a cooldown, overlapping and
-# rapid-fire requests hit Bybit's mutating endpoint back-to-back and trigger
-# ErrCode 10006 ("Too many visits"). The cooldown enforces a minimum gap
-# between real Bybit write calls per ad; requests arriving inside the window
-# are coalesced — the in-flight call is awaited (lock) and its result is
-# served to all waiters instead of issuing another write.
-_UPDATE_AD_COOLDOWN = 3  # seconds between real Bybit update calls per ad
-_update_ad_last_call = {}  # ad_id -> epoch ts of last Bybit write
-_update_ad_locks = {}  # ad_id -> per-ad threading.Lock
-_update_ad_locks_guard = threading.Lock()  # guards creation of per-ad locks
-_update_ad_last_result = {}  # ad_id -> {"ts": epoch, "payload": {...}}
-_update_ad_stats = {"bybit_calls": 0, "coalesced": 0, "rate_limited": 0}
-
-
-def _update_ad_lock_for(ad_id):
-    with _update_ad_locks_guard:
-        lock = _update_ad_locks.get(ad_id)
-        if lock is None:
-            lock = threading.Lock()
-            _update_ad_locks[ad_id] = lock
-        return lock
-
-
-def _is_rate_limit_error(error_message):
-    return "10006" in error_message or "Too many visits" in error_message
-
-
-# =========================
 # 🗄️ PRICE-LIMIT CACHE + LOCK
 # =========================
 # The frontend polls /api/ad-price-limit every ~1s. Without caching, each poll
@@ -152,46 +103,14 @@ _price_limit_stats = {"bybit_calls": 0, "cache_hits": 0}
 
 
 def _cached_price_limit(ad_id):
-    return _cached(_price_limit_cache, ad_id, _PRICE_LIMIT_TTL)
+    entry = _price_limit_cache.get(ad_id)
+    if entry and (time.time() - entry["ts"]) < _PRICE_LIMIT_TTL:
+        return entry["payload"]
+    return None
 
 
 def _store_price_limit(ad_id, payload):
-    _store(_price_limit_cache, ad_id, payload)
-
-
-# =========================
-# 🗄️ MARKET ANALYSIS CACHE + LOCK
-# =========================
-# Same pattern as the price-limit cache: the frontend polls
-# /api/analyze-market frequently, and each call hits Bybit's
-# /v5/p2p/item/online endpoint. Without deduplication this triggers
-# ErrCode 10006 ("Too many visits. exceeded the api rate limit"). The cache
-# keys on token+currency+side+minAmount+marginPct+sortBy so identical
-# concurrent polls share ONE Bybit probe, and serves cached results for
-# MARKET_ANALYSIS_TTL seconds.
-_MARKET_ANALYSIS_TTL = 15  # seconds before re-probing Bybit
-_market_analysis_cache = {}  # key -> {"ts": epoch, "payload": {...}}
-_market_analysis_lock = threading.Lock()
-_market_analysis_stats = {"bybit_calls": 0, "cache_hits": 0}
-
-
-def _market_analysis_cache_key(data):
-    return _cache_key(
-        data.get("tokenId", "BTC"),
-        data.get("currencyId", "USD"),
-        str(data.get("side", "0")),
-        str(data.get("minAmount", 0)),
-        str(data.get("marginPct", 4)),
-        str(data.get("sortBy", "price")).lower(),
-    )
-
-
-def _cached_market_analysis(key):
-    return _cached(_market_analysis_cache, key, _MARKET_ANALYSIS_TTL)
-
-
-def _store_market_analysis(key, payload):
-    _store(_market_analysis_cache, key, payload)
+    _price_limit_cache[ad_id] = {"ts": time.time(), "payload": payload}
 
 
 @app.route("/", methods=["GET"])
@@ -204,98 +123,34 @@ def home():
 # =========================
 # 📢 UPDATE AD
 # =========================
-# Strategy (mirrors the price-limit / market-analysis caching pattern):
-#  1. If a request for the same ad is already in flight, wait for it and
-#     return its result (coalescing) instead of issuing another Bybit write.
-#  2. If the last successful write for this ad was less than
-#     _UPDATE_AD_COOLDOWN seconds ago, return the cached last result
-#     (cooldown) — the price hasn't had time to move meaningfully.
-#  3. Otherwise perform ONE Bybit update_ad call under a per-ad lock.
-#  4. On Bybit rate-limit (ErrCode 10006), return HTTP 429 so the frontend
-#     can back off instead of hammering every 1 second.
 @app.route("/api/update-ad", methods=["POST"])
 @require_api_keys
 def update_ad(data):
-    ad_id = data.get("id")
-    if not ad_id:
-        return jsonify({"status": False, "error": "Ad id is required"}), 400
+    try:
+        api = get_api(data)
 
-    ad_lock = _update_ad_lock_for(ad_id)
+        payment_ids = extract_payment_ids(data)
+        trading_pref = build_trading_pref(data.get("tradingPreferenceSet"))
 
-    requested_price = str(data.get("price", ""))
-
-    with ad_lock:
-        # Cooldown: serve last result ONLY if the price is the same and we
-        # just wrote to Bybit for this ad. A different price is a genuine
-        # update and must always go through to Bybit.
-        last = _update_ad_last_result.get(ad_id)
-        if (
-            last
-            and (time.time() - last["ts"]) < _UPDATE_AD_COOLDOWN
-            and str(last["payload"].get("_requested_price", "")) == requested_price
-        ):
-            _update_ad_stats["coalesced"] += 1
-            app.logger.info(
-                f"[update-ad] COOLDOWN HIT (same price) for ad {ad_id} "
-                f"(bybit_calls={_update_ad_stats['bybit_calls']}, "
-                f"coalesced={_update_ad_stats['coalesced']})"
-            )
-            return jsonify(last["payload"])
-
-        _update_ad_stats["bybit_calls"] += 1
-        app.logger.info(
-            f"[update-ad] BYBIT CALL #{_update_ad_stats['bybit_calls']} "
-            f"for ad {ad_id}"
+        result = api.update_ad(
+            id=data.get("id"),
+            priceType=int(data.get("priceType", 0)),
+            premium=float(data.get("premium", 0)),
+            price=float(data.get("price")),
+            minAmount=float(data.get("minAmount")),
+            maxAmount=float(data.get("maxAmount")),
+            remark=data.get("remark", ""),
+            tradingPreferenceSet=trading_pref,
+            paymentIds=payment_ids,
+            actionType="MODIFY",
+            quantity=str(data.get("quantity") or data.get("lastQuantity", "1")),
+            paymentPeriod=int(data.get("paymentPeriod", 15)),
         )
 
-        try:
-            api = get_api(data)
+        return jsonify(result)
 
-            payment_ids = extract_payment_ids(data)
-            trading_pref = build_trading_pref(data.get("tradingPreferenceSet"))
-
-            result = api.update_ad(
-                id=ad_id,
-                priceType=int(data.get("priceType", 0)),
-                premium=float(data.get("premium", 0)),
-                price=float(data.get("price")),
-                minAmount=float(data.get("minAmount")),
-                maxAmount=float(data.get("maxAmount")),
-                remark=data.get("remark", ""),
-                tradingPreferenceSet=trading_pref,
-                paymentIds=payment_ids,
-                actionType="MODIFY",
-                quantity=str(data.get("quantity") or data.get("lastQuantity", "1")),
-                paymentPeriod=int(data.get("paymentPeriod", 15)),
-            )
-
-            payload = result if isinstance(result, dict) else {"status": True, "result": result}
-            # Store the price we actually wrote so the cooldown can compare
-            # against it and skip only when the same price is re-sent.
-            if isinstance(payload, dict):
-                payload["_requested_price"] = requested_price
-            _update_ad_last_result[ad_id] = {"ts": time.time(), "payload": payload}
-            return jsonify(payload)
-
-        except Exception as e:
-            error_message = str(e)
-
-            if _is_rate_limit_error(error_message):
-                _update_ad_stats["rate_limited"] += 1
-                app.logger.warning(
-                    f"[update-ad] RATE LIMITED for ad {ad_id} "
-                    f"(rate_limited={_update_ad_stats['rate_limited']})"
-                )
-                # Serve last successful result if we have one (better than
-                # an error), otherwise return 429 so the frontend backs off.
-                last = _update_ad_last_result.get(ad_id)
-                if last:
-                    return jsonify(last["payload"])
-                return jsonify(
-                    {"status": False, "error": "Rate limited by Bybit. Please retry shortly."}
-                ), 429
-
-            return jsonify({"error": error_message}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # =========================
@@ -574,16 +429,12 @@ def pending_orders(data):
 # =========================
 # 📊 MARKET ANALYSIS
 # =========================
-# Strategy (mirrors /api/ad-price-limit):
-#  1. Serve cached results if fresh (< _MARKET_ANALYSIS_TTL seconds old).
-#  2. Otherwise acquire a lock keyed on the analysis parameters so
-#     overlapping concurrent requests share a SINGLE Bybit probe (the rest
-#     wait, then read the cache).
-#  3. One Bybit API call per TTL window — no flood, no rate-limit (10006).
 @app.route("/api/analyze-market", methods=["POST"])
 @require_api_keys
 def analyze_market(data):
     try:
+        api = get_api(data)
+
         token_id = data.get("tokenId", "BTC")
         currency_id = data.get("currencyId", "USD")
         side = str(data.get("side", "0"))
@@ -591,146 +442,108 @@ def analyze_market(data):
         margin_pct = float(data.get("marginPct", 4))
         sort_by = str(data.get("sortBy", "price")).lower()
 
-        cache_key = _market_analysis_cache_key(data)
+        ads = api.get_online_ads(
+            tokenId=token_id,
+            currencyId=currency_id,
+            side=side,
+            size="30",
+            vaMaker=True,
+            authMaker=False,
+            bulkMaker=False,
+            canTrade=False,
+            verificationFilter=0,
+            sortType="OVERALL_RANKING",
+            sortStrategyCode="DEFAULT_BUY",
+            itemRegion=1,
+            tradeWith=False,
+        )
 
-        # Fast path: fresh cache, no Bybit call at all
-        cached = _cached_market_analysis(cache_key)
-        if cached is not None:
-            _market_analysis_stats["cache_hits"] += 1
-            app.logger.info(
-                f"[analyze-market] CACHE HIT for key {cache_key} "
-                f"(bybit_calls={_market_analysis_stats['bybit_calls']}, "
-                f"cache_hits={_market_analysis_stats['cache_hits']})"
-            )
-            return jsonify(cached)
+        items = []
+        if isinstance(ads, dict):
+            items = ads.get("result", {}).get("items", [])
 
-        # Slow path: one caller probes, the rest wait for the cache
-        with _market_analysis_lock:
-            # Re-check inside the lock (another request may have just filled it)
-            cached = _cached_market_analysis(cache_key)
-            if cached is not None:
-                _market_analysis_stats["cache_hits"] += 1
-                app.logger.info(
-                    f"[analyze-market] CACHE HIT (post-lock) for key {cache_key} "
-                    f"(bybit_calls={_market_analysis_stats['bybit_calls']}, "
-                    f"cache_hits={_market_analysis_stats['cache_hits']})"
-                )
-                return jsonify(cached)
-
-            _market_analysis_stats["bybit_calls"] += 1
-            app.logger.info(
-                f"[analyze-market] BYBIT CALL "
-                f"#{_market_analysis_stats['bybit_calls']} for key {cache_key}"
-            )
-
-            api = get_api(data)
-            ads = api.get_online_ads(
-                tokenId=token_id,
-                currencyId=currency_id,
-                side=side,
-                size="30",
-                vaMaker=True,
-                authMaker=False,
-                bulkMaker=False,
-                canTrade=False,
-                verificationFilter=0,
-                sortType="OVERALL_RANKING",
-                sortStrategyCode="DEFAULT_BUY",
-                itemRegion=1,
-                tradeWith=False,
-            )
-
-            items = []
-            if isinstance(ads, dict):
-                items = ads.get("result", {}).get("items", [])
-
-            competitors = []
-            for ad in items:
-                try:
-                    price = float(ad.get("price", 0))
-                    if price <= 0:
-                        continue
-
-                    ad_min = float(ad.get("minAmount", 0))
-                    ad_max = float(ad.get("maxAmount", 0))
-
-                    if min_amount > 0 and ad_max < min_amount:
-                        continue
-
-                    raw_orders = ad.get("recentOrderNum", 0)
-                    try:
-                        recent_orders = int(raw_orders) if raw_orders is not None else 0
-                    except (ValueError, TypeError):
-                        recent_orders = 0
-
-                    raw_rate = ad.get("recentExecuteRate", 0)
-                    try:
-                        recent_rate = (
-                            float(str(raw_rate).replace("%", "").strip())
-                            if raw_rate is not None
-                            else 0.0
-                        )
-                    except (ValueError, TypeError):
-                        recent_rate = 0.0
-
-                    competitors.append({
-                        "id": ad.get("id"),
-                        "nickName": ad.get("nickName"),
-                        "price": price,
-                        "minAmount": ad_min,
-                        "maxAmount": ad_max,
-                        "quantity": ad.get("quantity"),
-                        "recentOrderNum": recent_orders,
-                        "recentExecuteRate": recent_rate,
-                        "paymentPeriod": ad.get("paymentPeriod"),
-                    })
-                except Exception:
+        competitors = []
+        for ad in items:
+            try:
+                price = float(ad.get("price", 0))
+                if price <= 0:
                     continue
 
-            if not competitors:
-                payload = {
-                    "status": False,
-                    "error": "No valid competitor ads found",
-                }
-                # Don't cache the "no ads" miss — let the next request retry
-                return jsonify(payload), 404
+                ad_min = float(ad.get("minAmount", 0))
+                ad_max = float(ad.get("maxAmount", 0))
 
-            if side == "0":
-                top_competitor_price = max(c["price"] for c in competitors)
-                recommended_price = top_competitor_price * (1 + (margin_pct / 100))
-            else:
-                top_competitor_price = min(c["price"] for c in competitors)
-                recommended_price = top_competitor_price * (1 - (margin_pct / 100))
+                if min_amount > 0 and ad_max < min_amount:
+                    continue
 
-            if sort_by == "orders":
-                competitors = sorted(
-                    competitors, key=lambda x: x["recentOrderNum"], reverse=True
-                )
-            elif sort_by == "completion_rate":
-                competitors = sorted(
-                    competitors, key=lambda x: x["recentExecuteRate"], reverse=True
-                )
-            else:
-                competitors = sorted(
-                    competitors, key=lambda x: x["price"], reverse=(side == "0")
-                )
+                raw_orders = ad.get("recentOrderNum", 0)
+                try:
+                    recent_orders = int(raw_orders) if raw_orders is not None else 0
+                except (ValueError, TypeError):
+                    recent_orders = 0
 
-            top_10 = competitors[:30]
+                raw_rate = ad.get("recentExecuteRate", 0)
+                try:
+                    recent_rate = (
+                        float(str(raw_rate).replace("%", "").strip())
+                        if raw_rate is not None
+                        else 0.0
+                    )
+                except (ValueError, TypeError):
+                    recent_rate = 0.0
 
-            payload = {
-                "status": True,
-                "tokenId": token_id,
-                "currencyId": currency_id,
-                "side": side,
-                "sort_by": sort_by,
-                "ads_found": len(competitors),
-                "top_competitor_price": round(top_competitor_price, 2),
-                "margin_percent": margin_pct,
-                "recommended_price": round(recommended_price, 2),
-                "top_10_competitors": top_10,
-            }
-            _store_market_analysis(cache_key, payload)
-            return jsonify(payload)
+                competitors.append({
+                    "id": ad.get("id"),
+                    "nickName": ad.get("nickName"),
+                    "price": price,
+                    "minAmount": ad_min,
+                    "maxAmount": ad_max,
+                    "quantity": ad.get("quantity"),
+                    "recentOrderNum": recent_orders,
+                    "recentExecuteRate": recent_rate,
+                    "paymentPeriod": ad.get("paymentPeriod"),
+                })
+            except Exception:
+                continue
+
+        if not competitors:
+            return jsonify(
+                {"status": False, "error": "No valid competitor ads found"}
+            ), 404
+
+        if side == "0":
+            top_competitor_price = max(c["price"] for c in competitors)
+            recommended_price = top_competitor_price * (1 + (margin_pct / 100))
+        else:
+            top_competitor_price = min(c["price"] for c in competitors)
+            recommended_price = top_competitor_price * (1 - (margin_pct / 100))
+
+        if sort_by == "orders":
+            competitors = sorted(
+                competitors, key=lambda x: x["recentOrderNum"], reverse=True
+            )
+        elif sort_by == "completion_rate":
+            competitors = sorted(
+                competitors, key=lambda x: x["recentExecuteRate"], reverse=True
+            )
+        else:
+            competitors = sorted(
+                competitors, key=lambda x: x["price"], reverse=(side == "0")
+            )
+
+        top_10 = competitors[:30]
+
+        return jsonify({
+            "status": True,
+            "tokenId": token_id,
+            "currencyId": currency_id,
+            "side": side,
+            "sort_by": sort_by,
+            "ads_found": len(competitors),
+            "top_competitor_price": round(top_competitor_price, 2),
+            "margin_percent": margin_pct,
+            "recommended_price": round(recommended_price, 2),
+            "top_10_competitors": top_10,
+        })
 
     except Exception as e:
         return jsonify({"status": False, "error": str(e)}), 500
@@ -777,9 +590,8 @@ def mark_as_paid(data):
 # =========================
 if __name__ == "__main__":
     print("=" * 60)
-    print("  ByBit P2P API — v2.1 with price-limit + market-analysis cache")
-    print("  Price-limit TTL: 10s  |  Market-analysis TTL: 15s")
-    print("  Library logger: SILENCED")
+    print("  ByBit P2P API — v2.0 with price-limit cache")
+    print("  Cache TTL: 10s  |  Library logger: SILENCED")
     print("  Restart this server to load code changes!")
     print("=" * 60)
     app.run(host="127.0.0.1", port=8090, debug=False)
