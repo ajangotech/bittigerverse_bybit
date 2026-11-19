@@ -253,7 +253,7 @@
                 return;
             }
             fetchMarket().finally(() => {
-                timer = setTimeout(poll, 10000);
+                timer = setTimeout(poll, 1000);
             });
         }
         startLive();
