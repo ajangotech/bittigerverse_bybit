@@ -741,10 +741,8 @@
                 const payload = {
                     ...ad,
                     price: priceToUpdate,
-                    //api_key: API_KEY,
-                    //api_secret: API_SECRET
-                    api_key: "2hfQxfbVbg9dfBnBNq",
-                    api_secret: "Q06x6MlTjE0nhl3gq4JMjFgD2PUsTwQcc39u"
+                    api_key: API_KEY,
+                    api_secret: API_SECRET
                 };
 
                 try {
