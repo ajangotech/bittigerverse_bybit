@@ -571,7 +571,7 @@
                 tradingPreferenceSet: ad.tradingPreferenceSet
             };
 
-            const res = await fetch(`${API_URL}/ad-price-limit`, {
+            const res = await fetch(`http://159.65.49.40/api/ad-price-limit`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
