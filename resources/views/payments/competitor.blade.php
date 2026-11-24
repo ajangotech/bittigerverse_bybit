@@ -84,6 +84,20 @@
 
     }
 
+
+
+    .plus-panel{
+
+        background-color:#fffdfa;
+
+        border:2px solid #E37216;
+
+        border-radius:10px;
+
+    }
+
+
+
 </style>
 
 
@@ -288,6 +302,70 @@
 
 
 
+                        <p class="mb-0">
+
+                            <b>Time to Re-edit:</b>
+
+                            <span id="plusCountdownText" class="text-danger fw-bold">---</span>
+
+                        </p>
+
+
+
+                    </div>
+
+
+
+                    <!-- Competitor Plus Panel -->
+
+                    <div class="p-3 mb-3 mt-3 plus-panel">
+
+                        <div class="form-check form-switch mb-2">
+
+                            <input class="form-check-input" type="checkbox" id="plusModeToggle">
+
+                            <label class="form-check-label fw-bold text-dark" for="plusModeToggle">
+
+                                Enable Competitor Plus
+
+                            </label>
+
+                        </div>
+
+
+
+                        <label class="small text-muted mb-1">Set Re-edit Timer:</label>
+
+                        <select class="form-select form-select-sm" id="plusTimer">
+
+                            <option value="60000">1.0 Minutes</option>
+
+                            <option value="90000">1.5 Minutes</option>
+
+                            <option value="120000">2.0 Minutes</option>
+
+                            <option value="150000">2.5 Minutes</option>
+
+                            <option value="180000" selected>3.0 Minutes</option>
+
+                            <option value="210000">3.5 Minutes</option>
+
+                            <option value="240000">4.0 Minutes</option>
+
+                            <option value="270000">4.5 Minutes</option>
+
+                            <option value="300000">5.0 Minutes</option>
+
+                            <option value="330000">5.5 Minutes</option>
+
+                            <option value="360000">6.0 Minutes</option>
+
+                            <option value="390000">6.5 Minutes</option>
+
+                            <option value="420000">7.0 Minutes</option>
+
+                        </select>
+
                     </div>
 
 
@@ -332,6 +410,24 @@
 
 
 
+        /*
+
+        |--------------------------------------------------------------------------
+
+        | Timer Elements
+
+        |--------------------------------------------------------------------------
+
+        */
+
+        const plusModeToggle = document.getElementById('plusModeToggle');
+
+        const plusTimer = document.getElementById('plusTimer');
+
+        const countdownEl = document.getElementById('plusCountdownText');
+
+
+
         let adsData = [];
 
         let competitors = [];
@@ -368,6 +464,22 @@
 
         |--------------------------------------------------------------------------
 
+        | Timer State
+
+        |--------------------------------------------------------------------------
+
+        */
+
+        let lastSuccessfulUpdateTime = Date.now();
+
+        let plusFetching = false;
+
+
+
+        /*
+
+        |--------------------------------------------------------------------------
+
         | Toast
 
         |--------------------------------------------------------------------------
@@ -391,6 +503,42 @@
                 t.className = 'app-toast';
 
             }, 3000);
+
+        }
+
+
+
+        /*
+
+        |--------------------------------------------------------------------------
+
+        | Timer Helper
+
+        |--------------------------------------------------------------------------
+
+        */
+
+        function activeTimerMs() {
+
+            return parseInt(plusTimer?.value) || 180000;
+
+        }
+
+
+
+        if (plusModeToggle) {
+
+            plusModeToggle.addEventListener('change', function() {
+
+                if (this.checked) {
+
+                    lastSuccessfulUpdateTime = Date.now();
+
+                    toast('Competitor Plus Activated');
+
+                }
+
+            });
 
         }
 
@@ -578,8 +726,6 @@
 
                     `${ad.tokenId}/${ad.currencyId}`;
 
-
-
                 document.getElementById(
 
                     'currentPrice'
@@ -646,6 +792,12 @@
 
 
 
+                lastSuccessfulUpdateTime = Date.now();
+
+                plusFetching = false;
+
+
+
                 document.getElementById(
 
                     'merchantName'
@@ -667,6 +819,10 @@
                     'trackingStatus'
 
                 ).innerHTML = 'Stopped';
+
+
+
+                countdownEl.innerHTML = '---';
 
 
 
@@ -706,9 +862,13 @@
 
             if (
 
+
+
                 !selectedToken ||
 
                 !selectedCurrency
+
+
 
             ) {
 
@@ -954,6 +1114,10 @@
 
 
 
+                lastSuccessfulUpdateTime = Date.now();
+
+
+
                 document.getElementById(
 
                     'merchantName'
@@ -1050,7 +1214,7 @@
 
         |--------------------------------------------------------------------------
 
-        | Track Merchant (Ratchet / Up-Only Mode)
+        | Track Merchant (Ratchet / Up-Only Mode + Competitor Plus Timer)
 
         |--------------------------------------------------------------------------
 
@@ -1102,7 +1266,241 @@
 
             |--------------------------------------------------------------------------
 
-            | The Ratchet Check (NEVER GO DOWN)
+            | Competitor Plus Mode (Timer-based re-edit)
+
+            |--------------------------------------------------------------------------
+
+            | When Plus is enabled, the ad is re-synced to the competitor's current
+
+            | price after the configured timer expires, even if the price has not
+
+            | gone up. If the price goes up before the timer expires, it syncs
+
+            | immediately and resets the timer.
+
+            */
+
+            if (plusModeToggle && plusModeToggle.checked) {
+
+
+
+                if (plusFetching) {
+
+                    return;
+
+                }
+
+
+
+                const plusTimerMs = activeTimerMs();
+
+                const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
+
+
+
+                /*
+
+                |----------------------------------------------------------------------
+
+                | New high reached — sync immediately and reset timer
+
+                |----------------------------------------------------------------------
+
+                */
+
+                if (currentPrice > lastMerchantPrice) {
+
+                    document.getElementById('trackingStatus').innerHTML =
+
+                        '<span class="text-success fw-bold">Tracking Upwards</span>';
+
+
+
+                    lastMerchantPrice = currentPrice;
+
+                    lastSuccessfulUpdateTime = Date.now();
+
+
+
+                    await updateAdPrice(currentPrice);
+
+
+
+                    try {
+
+                        await fetch(
+
+                            "{{ route('dashboard.com.store') }}",
+
+                            {
+
+                                method: 'POST',
+
+                                headers: {
+
+                                    'Content-Type': 'application/json',
+
+                                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+
+                                },
+
+                                body: JSON.stringify({
+
+                                    merchant_id: merchant.id,
+
+                                    username: merchant.nickName,
+
+                                    price: currentPrice
+
+                                })
+
+                            }
+
+                        );
+
+                    } catch (e) {
+
+                        console.log(e);
+
+                    }
+
+
+
+                    return;
+
+                }
+
+
+
+                /*
+
+                |----------------------------------------------------------------------
+
+                | Timer expired — re-sync to competitor's current price
+
+                |----------------------------------------------------------------------
+
+                */
+
+                if (timeSinceLastUpdate >= plusTimerMs) {
+
+                    plusFetching = true;
+
+
+
+                    document.getElementById('trackingStatus').innerHTML =
+
+                        '<span class="text-warning fw-bold">Timer Expired! Re-syncing...</span>';
+
+
+
+                    toast(
+
+                        `Timer expired! Re-editing to ${selectedMerchantName}'s current price (${currentPrice})`,
+
+                        'success'
+
+                    );
+
+
+
+                    try {
+
+                        lastMerchantPrice = currentPrice;
+
+                        lastSuccessfulUpdateTime = Date.now();
+
+
+
+                        document.getElementById('trackingStatus').innerHTML =
+
+                            '<span class="text-success fw-bold">Timer Resync</span>';
+
+
+
+                        await updateAdPrice(currentPrice);
+
+
+
+                        try {
+
+                            await fetch(
+
+                                "{{ route('dashboard.com.store') }}",
+
+                                {
+
+                                    method: 'POST',
+
+                                    headers: {
+
+                                        'Content-Type': 'application/json',
+
+                                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+
+                                    },
+
+                                    body: JSON.stringify({
+
+                                        merchant_id: merchant.id,
+
+                                        username: merchant.nickName,
+
+                                        price: currentPrice
+
+                                    })
+
+                                }
+
+                            );
+
+                        } catch (e) {
+
+                            console.log(e);
+
+                        }
+
+                    } finally {
+
+                        plusFetching = false;
+
+                    }
+
+
+
+                    return;
+
+                }
+
+
+
+                /*
+
+                |----------------------------------------------------------------------
+
+                | Holding position — timer still counting
+
+                |----------------------------------------------------------------------
+
+                */
+
+                document.getElementById('trackingStatus').innerHTML =
+
+                    `Maintaining High (${lastMerchantPrice})`;
+
+
+
+                return;
+
+            }
+
+
+
+            /*
+
+            |--------------------------------------------------------------------------
+
+            | Standard Ratchet Check (NEVER GO DOWN)
 
             |--------------------------------------------------------------------------
 
@@ -1116,7 +1514,7 @@
 
                 document.getElementById('trackingStatus').innerHTML = `Maintaining High (${lastMerchantPrice})`;
 
-                return; // 🛑 Script stops here. No API calls are made. Ad does not drop.
+                return; // Script stops here. No API calls are made. Ad does not drop.
 
             }
 
@@ -1426,8 +1824,6 @@
 
             if (!ad) {
 
-
-
                 updatingAd = false;
 
 
@@ -1595,6 +1991,52 @@
 
 
         }, 500);
+
+
+
+        /*
+
+        |--------------------------------------------------------------------------
+
+        | Visual Countdown Timer (updates every 1 second)
+
+        |--------------------------------------------------------------------------
+
+        */
+
+        setInterval(() => {
+
+            if (tracking && selectedMerchantId && plusModeToggle && plusModeToggle.checked) {
+
+                const plusTimerMs = activeTimerMs();
+
+                const timeSinceLastUpdate = Date.now() - lastSuccessfulUpdateTime;
+
+                const timeLeft = Math.max(0, plusTimerMs - timeSinceLastUpdate);
+
+
+
+                if (timeLeft > 0) {
+
+                    const mins = Math.floor(timeLeft / 60000);
+
+                    const secs = Math.floor((timeLeft % 60000) / 1000);
+
+                    countdownEl.innerHTML = `${mins}m ${secs}s`;
+
+                } else {
+
+                    countdownEl.innerHTML = 'Resyncing...';
+
+                }
+
+            } else {
+
+                countdownEl.innerHTML = '---';
+
+            }
+
+        }, 1000);
 
 
 

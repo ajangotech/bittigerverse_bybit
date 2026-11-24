@@ -18,8 +18,24 @@ load_dotenv()
 app = Flask(__name__)
 application = app
 
-CORS(app, resources={r"/*": {"origins": "*"}})
-
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://159.65.49.40",
+            "https://bittiger.ajango.com.ng",
+            "https://00-bittiger.ajango.com.ng",
+            "https://01-bittiger.ajango.com.ng",
+            "https://02-bittiger.ajango.com.ng",
+            "https://03-bittiger.ajango.com.ng",
+            "https://04-bittiger.ajango.com.ng",
+            "https://05-bittiger.ajango.com.ng",
+            "https://06-bittiger.ajango.com.ng",
+            "https://07-bittiger.ajango.com.ng",
+            "https://08-bittiger.ajango.com.ng",
+            "https://09-bittiger.ajango.com.ng",
+        ]
+    }
+})
 
 # =========================
 # 🔇 QUIET THE NOISY LIBRARY LOGGER
