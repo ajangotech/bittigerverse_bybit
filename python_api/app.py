@@ -22,6 +22,7 @@ CORS(app, resources={
     r"/*": {
         "origins": [
             "http://159.65.49.40",
+            "http://127.0.0.1",
             "https://bittiger.ajango.com.ng",
             "https://00-bittiger.ajango.com.ng",
             "https://01-bittiger.ajango.com.ng",
