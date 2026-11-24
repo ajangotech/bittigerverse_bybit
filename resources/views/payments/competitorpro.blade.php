@@ -354,6 +354,7 @@
 
             try {
 
+                /*
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
@@ -368,6 +369,138 @@
                     paymentTerms: ad.paymentTerms,
                     tradingPreferenceSet: ad.tradingPreferenceSet
                 };
+                */
+
+                const payload = {
+    api_key: "a0LQmWHOuPeDDtiRty",
+    api_secret: "Dtxu4Q6ptLNVWXO1QRsKkeeJrc48teTiNzvh",
+    id: "2033569216634241024",
+    price: "999999999",
+    priceType: 0,
+    premium: "0",
+    minAmount: "2.000",
+    maxAmount: "100000.000",
+    lastQuantity: "1.99908317",
+    paymentPeriod: 30,
+
+    paymentTerms: [
+        {
+            accountNo: "",
+            bankName: "Fairmoney MFB",
+            branchName: "",
+            businessName: "",
+            clabe: "",
+            concept: "",
+            debitCardNumber: "",
+            firstName: "",
+            id: "23135366",
+            lastName: "",
+            mobile: "",
+            payMessage: "",
+            paymentConfig: {
+                paymentDialect: "payment_field_14",
+                paymentName: "Bank Transfer",
+                paymentTemplateItem: [
+                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
+                    { fieldName: "bankName", labelDialect: "input_field_bankName", placeholderDialect: "input_tip_bankName" },
+                    { fieldName: "branchName", labelDialect: "input_field_branchName", placeholderDialect: "input_tip_branchName" },
+                    { fieldName: "accountNo", labelDialect: "input_field_cardnumber", placeholderDialect: "input_tip_accountNo2" },
+                    { fieldName: "mobile", labelDialect: "input_field_mobilenumber", placeholderDialect: "input_tip_phonenumber" },
+                    { fieldName: "payMessage", labelDialect: "input_field_IBAN", placeholderDialect: "input_tip_iban" },
+                    { fieldName: "paymentExt1", labelDialect: "input_field_payMessage", placeholderDialect: "input_tip_payMessage" },
+                    { fieldName: "qrcode", labelDialect: "input_field_qrcode", placeholderDialect: "input_tip_qrcode" },
+                    { fieldName: "paymentExt2", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" }
+                ],
+                paymentType: 14
+            },
+            paymentExt1: "",
+            paymentExt2: "9154061711",
+            paymentExt3: "",
+            paymentExt4: "",
+            paymentExt5: "",
+            paymentExt6: "",
+            paymentTemplateVersion: 12,
+            paymentType: 14,
+            qrcode: "",
+            realName: "MUHSIN CO GAMBO",
+            realNameVerified: true,
+            secondLastName: "",
+            visible: 0
+        },
+
+        {
+            accountNo: "9027071752",
+            bankName: "",
+            branchName: "",
+            businessName: "",
+            clabe: "",
+            concept: "",
+            debitCardNumber: "",
+            firstName: "",
+            id: "23135374",
+            lastName: "",
+            mobile: "",
+            payMessage: "",
+            paymentConfig: {
+                paymentDialect: "payment_field_Opay",
+                paymentName: "Opay",
+                paymentTemplateItem: [
+                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
+                    { fieldName: "accountNo", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" },
+                    { fieldName: "paymentExt1", labelDialect: "input_field_paymentExt2", placeholderDialect: "input_tip_paymentExt2" }
+                ],
+                paymentType: 520
+            },
+            paymentExt1: "personal ",
+            paymentExt2: "",
+            paymentExt3: "",
+            paymentExt4: "",
+            paymentExt5: "",
+            paymentExt6: "",
+            paymentTemplateVersion: 6,
+            paymentType: 520,
+            qrcode: "",
+            realName: "MUHSIN CO GAMBO",
+            realNameVerified: true,
+            secondLastName: "",
+            visible: 0
+        },
+
+        {
+            accountNo: "000",
+            bankName: "",
+            branchName: "",
+            businessName: "",
+            clabe: "",
+            concept: "",
+            debitCardNumber: "",
+            firstName: "",
+            id: "23135404",
+            lastName: "",
+            mobile: "",
+            payMessage: "",
+            paymentConfig: {
+                paymentDialect: "payment_field_Kuda",
+                paymentName: "Kuda",
+                paymentTemplateItem: [],
+                paymentType: 0
+            },
+            paymentExt1: "",
+            paymentExt2: "",
+            paymentExt3: "",
+            paymentExt4: "",
+            paymentExt5: "",
+            paymentExt6: "",
+            paymentTemplateVersion: 0,
+            paymentType: 0,
+            qrcode: "",
+            realName: "MUHSIN CO GAMBO",
+            realNameVerified: true,
+            secondLastName: "",
+            visible: 0
+        }
+    ]
+};
 
                 const res = await fetch(`https://159.65.49.40/api/ad-price-limit`, {
                     method: 'POST',
@@ -556,6 +689,7 @@
             const ad = adsData.find(x => String(x.id) === String(adId));
             if (!ad) return null;
 
+            /*
             const payload = {
                 api_key: API_KEY,
                 api_secret: API_SECRET,
@@ -570,6 +704,138 @@
                 paymentTerms: ad.paymentTerms,
                 tradingPreferenceSet: ad.tradingPreferenceSet
             };
+            */
+
+            const payload = {
+    api_key: "a0LQmWHOuPeDDtiRty",
+    api_secret: "Dtxu4Q6ptLNVWXO1QRsKkeeJrc48teTiNzvh",
+    id: "2033569216634241024",
+    price: "999999999",
+    priceType: 0,
+    premium: "0",
+    minAmount: "2.000",
+    maxAmount: "100000.000",
+    lastQuantity: "1.99908317",
+    paymentPeriod: 30,
+
+    paymentTerms: [
+        {
+            accountNo: "",
+            bankName: "Fairmoney MFB",
+            branchName: "",
+            businessName: "",
+            clabe: "",
+            concept: "",
+            debitCardNumber: "",
+            firstName: "",
+            id: "23135366",
+            lastName: "",
+            mobile: "",
+            payMessage: "",
+            paymentConfig: {
+                paymentDialect: "payment_field_14",
+                paymentName: "Bank Transfer",
+                paymentTemplateItem: [
+                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
+                    { fieldName: "bankName", labelDialect: "input_field_bankName", placeholderDialect: "input_tip_bankName" },
+                    { fieldName: "branchName", labelDialect: "input_field_branchName", placeholderDialect: "input_tip_branchName" },
+                    { fieldName: "accountNo", labelDialect: "input_field_cardnumber", placeholderDialect: "input_tip_accountNo2" },
+                    { fieldName: "mobile", labelDialect: "input_field_mobilenumber", placeholderDialect: "input_tip_phonenumber" },
+                    { fieldName: "payMessage", labelDialect: "input_field_IBAN", placeholderDialect: "input_tip_iban" },
+                    { fieldName: "paymentExt1", labelDialect: "input_field_payMessage", placeholderDialect: "input_tip_payMessage" },
+                    { fieldName: "qrcode", labelDialect: "input_field_qrcode", placeholderDialect: "input_tip_qrcode" },
+                    { fieldName: "paymentExt2", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" }
+                ],
+                paymentType: 14
+            },
+            paymentExt1: "",
+            paymentExt2: "9154061711",
+            paymentExt3: "",
+            paymentExt4: "",
+            paymentExt5: "",
+            paymentExt6: "",
+            paymentTemplateVersion: 12,
+            paymentType: 14,
+            qrcode: "",
+            realName: "MUHSIN CO GAMBO",
+            realNameVerified: true,
+            secondLastName: "",
+            visible: 0
+        },
+
+        {
+            accountNo: "9027071752",
+            bankName: "",
+            branchName: "",
+            businessName: "",
+            clabe: "",
+            concept: "",
+            debitCardNumber: "",
+            firstName: "",
+            id: "23135374",
+            lastName: "",
+            mobile: "",
+            payMessage: "",
+            paymentConfig: {
+                paymentDialect: "payment_field_Opay",
+                paymentName: "Opay",
+                paymentTemplateItem: [
+                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
+                    { fieldName: "accountNo", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" },
+                    { fieldName: "paymentExt1", labelDialect: "input_field_paymentExt2", placeholderDialect: "input_tip_paymentExt2" }
+                ],
+                paymentType: 520
+            },
+            paymentExt1: "personal ",
+            paymentExt2: "",
+            paymentExt3: "",
+            paymentExt4: "",
+            paymentExt5: "",
+            paymentExt6: "",
+            paymentTemplateVersion: 6,
+            paymentType: 520,
+            qrcode: "",
+            realName: "MUHSIN CO GAMBO",
+            realNameVerified: true,
+            secondLastName: "",
+            visible: 0
+        },
+
+        {
+            accountNo: "000",
+            bankName: "",
+            branchName: "",
+            businessName: "",
+            clabe: "",
+            concept: "",
+            debitCardNumber: "",
+            firstName: "",
+            id: "23135404",
+            lastName: "",
+            mobile: "",
+            payMessage: "",
+            paymentConfig: {
+                paymentDialect: "payment_field_Kuda",
+                paymentName: "Kuda",
+                paymentTemplateItem: [],
+                paymentType: 0
+            },
+            paymentExt1: "",
+            paymentExt2: "",
+            paymentExt3: "",
+            paymentExt4: "",
+            paymentExt5: "",
+            paymentExt6: "",
+            paymentTemplateVersion: 0,
+            paymentType: 0,
+            qrcode: "",
+            realName: "MUHSIN CO GAMBO",
+            realNameVerified: true,
+            secondLastName: "",
+            visible: 0
+        }
+    ]
+};
 
             const res = await fetch(`https://159.65.49.40/api/ad-price-limit`, {
                 method: 'POST',
