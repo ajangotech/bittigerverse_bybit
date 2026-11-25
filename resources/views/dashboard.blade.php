@@ -100,6 +100,10 @@
                             Manage Ads
                         </a>
 
+                        <a href="{{ route('dashboard.competitorpro') }}" class="btn btn-light text-start">
+                            Competitor Pro
+                        </a>
+
                         <button onclick="loadAds()" class="btn btn-light text-start">
                             Reload API Data
                         </button>
@@ -270,8 +274,6 @@ function renderTable() {
         `;
     });
 }
-
-
 
 // =====================
 // EDIT HOOK (OPTIONAL)

@@ -14,6 +14,8 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
 
+        $users = User::all();
+
         $usersCount = User::count();
         $adsCount = Ads::count();
 
@@ -22,6 +24,7 @@ class DashboardController extends Controller
         return view('dashboard', compact(
             'user',
             'ads',
+            'users',
             'usersCount',
             'adsCount'
         ));

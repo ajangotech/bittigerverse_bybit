@@ -65,18 +65,23 @@
                         My Advertisements
                     </h5>
 
-                    <select class="form-select form-select-lg mb-4" id="adsSelect">
+                    <label class="small text-muted mb-1">TOPPER Ad <span class="text-danger">(used when tracking TOPPER-BTC)</span>:</label>
+                    <select class="form-select form-select-lg mb-3" id="topperAdsSelect">
                         <option value="">Loading...</option>
                     </select>
 
-                    <input type="hidden" id="adId">
+                    <label class="small text-muted mb-1">Competitor Ad <span class="text-danger">(used when tracking other merchants)</span>:</label>
+                    <select class="form-select form-select-lg mb-4" id="competitorAdsSelect">
+                        <option value="">Loading...</option>
+                    </select>
 
                     <div class="border rounded p-3">
+                        <p><b>Active Ad:</b> <span id="activeAdLabel" class="text-danger fw-bold">---</span></p>
                         <p><b>Pair:</b> <span id="pairText">---</span></p>
                         <p><b>Current Price:</b> <span id="currentPrice" class="text-success fw-bold">---</span></p>
                         <p><b>Min:</b> <span id="minText">---</span></p>
                         <p><b>Max:</b> <span id="maxText">---</span></p>
-                        <p><b>Status:</b> <span id="statusText">---</span></p>
+                        <p class="mb-0"><b>Status:</b> <span id="statusText">---</span></p>
                     </div>
 
                 </div>
@@ -169,7 +174,8 @@
         const API_KEY = "{{ auth()->user()->bybit_api_key }}";
         const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
-        const adsSelect = document.getElementById('adsSelect');
+        const topperAdsSelect = document.getElementById('topperAdsSelect');
+        const competitorAdsSelect = document.getElementById('competitorAdsSelect');
         const merchantSelect = document.getElementById('merchantSelect');
         const plusModeToggle = document.getElementById('plusModeToggle');
         const plusTimer = document.getElementById('plusTimer');
@@ -185,6 +191,12 @@
 
         let adsData = [];
         let competitors = [];
+
+        // Two separate ad selections:
+        //   topperAd      -> used for all TOPPER-BTC tracking requests
+        //   competitorAd  -> used for every other (non-TOPPER) merchant request
+        let topperAd = null;
+        let competitorAd = null;
 
         // Special TOPPER-BTC Merchant Object
         let topperMerchant = {
@@ -217,6 +229,44 @@
             t.innerHTML = message;
             t.className = `app-toast show ${type}`;
             setTimeout(() => { t.className = 'app-toast'; }, 3000);
+        }
+
+        /*
+        |------------------------------------------------------------------------
+        | Active ad helper — which ad is in play depends on the merchant
+        |------------------------------------------------------------------------
+        */
+        function activeAd() {
+            return selectedMerchantId === 'TOPPER-BTC' ? topperAd : competitorAd;
+        }
+
+        function adMissingMessage() {
+            return selectedMerchantId === 'TOPPER-BTC'
+                ? 'Please select a TOPPER Ad first.'
+                : 'Please select a Competitor Ad first.';
+        }
+
+        function renderAdPanel(ad) {
+            if (!ad) {
+                document.getElementById('activeAdLabel').innerHTML = '---';
+                document.getElementById('pairText').innerHTML = '---';
+                document.getElementById('currentPrice').innerHTML = '---';
+                document.getElementById('minText').innerHTML = '---';
+                document.getElementById('maxText').innerHTML = '---';
+                document.getElementById('statusText').innerHTML = '---';
+                return;
+            }
+
+            const label = (selectedMerchantId === 'TOPPER-BTC')
+                ? `TOPPER Ad (#${ad.id})`
+                : `Competitor Ad (#${ad.id})`;
+
+            document.getElementById('activeAdLabel').innerHTML = label;
+            document.getElementById('pairText').innerHTML = `${ad.tokenId}/${ad.currencyId}`;
+            document.getElementById('currentPrice').innerHTML = ad.price;
+            document.getElementById('minText').innerHTML = ad.minAmount;
+            document.getElementById('maxText').innerHTML = ad.maxAmount;
+            document.getElementById('statusText').innerHTML = ad.status ?? '---';
         }
 
         /* =====================================================================
@@ -265,7 +315,7 @@
 
         /*
         |------------------------------------------------------------------------
-        | Load Advertisements
+        | Load Advertisements (fills BOTH dropdowns)
         |------------------------------------------------------------------------
         */
         async function loadAds() {
@@ -278,14 +328,14 @@
                 const data = await res.json();
                 adsData = data?.result?.items || [];
 
-                adsSelect.innerHTML = `<option value="">Select Advertisement</option>`;
-                adsData.forEach(ad => {
-                    adsSelect.innerHTML += `
-                        <option value="${ad.id}">
-                            ${ad.tokenId}/${ad.currencyId} | ${ad.price}
-                        </option>
-                    `;
-                });
+                const optionsHtml = adsData.map(ad => `
+                    <option value="${ad.id}">
+                        ${ad.tokenId}/${ad.currencyId} | ${ad.price}
+                    </option>
+                `).join('');
+
+                topperAdsSelect.innerHTML = `<option value="">Select TOPPER Ad</option>` + optionsHtml;
+                competitorAdsSelect.innerHTML = `<option value="">Select Competitor Ad</option>` + optionsHtml;
             } catch (e) {
                 console.log(e);
                 toast('Failed to load advertisements.', 'error');
@@ -295,28 +345,10 @@
 
         /*
         |------------------------------------------------------------------------
-        | Advertisement Selected
+        | Advertisement Selected (shared handler for both dropdowns)
         |------------------------------------------------------------------------
         */
-        adsSelect.addEventListener('change', async function () {
-            const ad = adsData.find(x => String(x.id) === String(this.value));
-
-            if (!ad) {
-                selectedToken = null;
-                selectedCurrency = null;
-                merchantSelect.innerHTML = `<option value="">Select Advertisement First</option>`;
-                return;
-            }
-
-            selectedToken = ad.tokenId;
-            selectedCurrency = ad.currencyId;
-            document.getElementById('adId').value = ad.id;
-            document.getElementById('pairText').innerHTML = `${ad.tokenId}/${ad.currencyId}`;
-            document.getElementById('currentPrice').innerHTML = ad.price;
-            document.getElementById('minText').innerHTML = ad.minAmount;
-            document.getElementById('maxText').innerHTML = ad.maxAmount;
-            document.getElementById('statusText').innerHTML = ad.status ?? '---';
-
+        function resetMerchantTrackingState() {
             selectedMerchantId = null;
             selectedMerchantName = null;
             referencePrice = null;
@@ -333,183 +365,70 @@
             trackingToggleBtn.innerHTML = '<i class="bi bi-play-fill"></i> Start';
 
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
+        }
+
+        async function onAdSelected(which) {
+            const selectEl = which === 'topper' ? topperAdsSelect : competitorAdsSelect;
+            const ad = adsData.find(x => String(x.id) === String(selectEl.value));
+
+            if (which === 'topper') {
+                topperAd = ad || null;
+            } else {
+                competitorAd = ad || null;
+            }
+
+            resetMerchantTrackingState();
+
+            if (!ad) {
+                selectedToken = null;
+                selectedCurrency = null;
+                renderAdPanel(null);
+                merchantSelect.innerHTML = `<option value="">Select Advertisement First</option>`;
+                return;
+            }
+
+            // The TOPPER price-limit check is driven by the TOPPER ad's pair
+            if (which === 'topper') {
+                selectedToken = ad.tokenId;
+                selectedCurrency = ad.currencyId;
+            }
+
+            // Show the ad that is relevant to the current tracking mode
+            renderAdPanel(activeAd() || ad);
 
             fetchTopperPrice();
             await fetchCompetitors();
-        });
+        }
+
+        topperAdsSelect.addEventListener('change', () => onAdSelected('topper'));
+        competitorAdsSelect.addEventListener('change', () => onAdSelected('competitor'));
 
         /*
         |------------------------------------------------------------------------
-        | Fetch TOPPER-BTC Price (1-Second API Check)
+        | Fetch TOPPER-BTC Price (1-Second API Check) — uses the TOPPER ad
         |------------------------------------------------------------------------
         */
         async function fetchTopperPrice() {
-            if (!selectedToken || !selectedCurrency) return;
-
-            const adId = document.getElementById('adId').value;
-            if (!adId) return;
-
-            const ad = adsData.find(x => String(x.id) === String(adId));
-            if (!ad) return;
+            if (!topperAd) return;
 
             try {
 
-                /*
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
-                    id: ad.id,
+                    id: topperAd.id,
                     price: "999999999", // Static price
-                    priceType: ad.priceType !== undefined ? ad.priceType : 0,
-                    premium: ad.premium !== undefined ? ad.premium : 0,
-                    minAmount: ad.minAmount,
-                    maxAmount: ad.maxAmount,
-                    lastQuantity: ad.lastQuantity,
-                    paymentPeriod: ad.paymentPeriod,
-                    paymentTerms: ad.paymentTerms,
-                    tradingPreferenceSet: ad.tradingPreferenceSet
+                    priceType: topperAd.priceType !== undefined ? topperAd.priceType : 0,
+                    premium: topperAd.premium !== undefined ? topperAd.premium : 0,
+                    minAmount: topperAd.minAmount,
+                    maxAmount: topperAd.maxAmount,
+                    lastQuantity: topperAd.lastQuantity,
+                    paymentPeriod: topperAd.paymentPeriod,
+                    paymentTerms: topperAd.paymentTerms,
+                    tradingPreferenceSet: topperAd.tradingPreferenceSet
                 };
-                */
 
-                
-                
-const payload = {
-    api_key: "a0LQmWHOuPeDDtiRty",
-    api_secret: "Dtxu4Q6ptLNVWXO1QRsKkeeJrc48teTiNzvh",
-    id: "2033569216634241024",
-    price: "999999999",
-    priceType: 0,
-    premium: "0",
-    minAmount: "2.000",
-    maxAmount: "100000.000",
-    lastQuantity: "1.99908317",
-    paymentPeriod: 30,
-
-    paymentTerms: [
-        // FAIRMoney MFB / BANK TRANSFER
-        {
-            accountNo: "",
-            bankName: "Fairmoney MFB",
-            branchName: "",
-            businessName: "",
-            clabe: "",
-            concept: "",
-            debitCardNumber: "",
-            firstName: "",
-            id: "23135366",
-            lastName: "",
-            mobile: "",
-            payMessage: "",
-            paymentConfig: {
-                paymentDialect: "payment_field_14",
-                paymentName: "Bank Transfer",
-                paymentTemplateItem: [
-                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
-                    { fieldName: "bankName", labelDialect: "input_field_bankName", placeholderDialect: "input_tip_bankName" },
-                    { fieldName: "branchName", labelDialect: "input_field_branchName", placeholderDialect: "input_tip_branchName" },
-                    { fieldName: "accountNo", labelDialect: "input_field_cardnumber", placeholderDialect: "input_tip_accountNo2" },
-                    { fieldName: "mobile", labelDialect: "input_field_mobilenumber", placeholderDialect: "input_tip_phonenumber" },
-                    { fieldName: "payMessage", labelDialect: "input_field_IBAN", placeholderDialect: "input_tip_iban" },
-                    { fieldName: "paymentExt1", labelDialect: "input_field_payMessage", placeholderDialect: "input_tip_payMessage" },
-                    { fieldName: "qrcode", labelDialect: "input_field_qrcode", placeholderDialect: "input_tip_qrcode" },
-                    { fieldName: "paymentExt2", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" }
-                ],
-                paymentType: 14
-            },
-            paymentExt1: "",
-            paymentExt2: "9154061711",
-            paymentExt3: "",
-            paymentExt4: "",
-            paymentExt5: "",
-            paymentExt6: "",
-            paymentTemplateVersion: 12,
-            paymentType: 14,
-            qrcode: "",
-            realName: "MUHSIN CO GAMBO",
-            realNameVerified: true,
-            secondLastName: "",
-            visible: 0
-        },
-
-        // OPAY
-        {
-            accountNo: "9027071752",
-            bankName: "",
-            branchName: "",
-            businessName: "",
-            clabe: "",
-            concept: "",
-            debitCardNumber: "",
-            firstName: "",
-            id: "23135374",
-            lastName: "",
-            mobile: "",
-            payMessage: "",
-            paymentConfig: {
-                paymentDialect: "payment_field_Opay",
-                paymentName: "Opay",
-                paymentTemplateItem: [
-                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
-                    { fieldName: "accountNo", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" },
-                    { fieldName: "paymentExt1", labelDialect: "input_field_paymentExt2", placeholderDialect: "input_tip_paymentExt2" }
-                ],
-                paymentType: 520
-            },
-            paymentExt1: "personal ",
-            paymentExt2: "",
-            paymentExt3: "",
-            paymentExt4: "",
-            paymentExt5: "",
-            paymentExt6: "",
-            paymentTemplateVersion: 6,
-            paymentType: 520,
-            qrcode: "",
-            realName: "MUHSIN CO GAMBO",
-            realNameVerified: true,
-            secondLastName: "",
-            visible: 0
-        },
-
-        // KUDA
-        {
-            accountNo: "000",
-            bankName: "",
-            branchName: "",
-            businessName: "",
-            clabe: "",
-            concept: "",
-            debitCardNumber: "",
-            firstName: "",
-            id: "23135404",
-            lastName: "",
-            mobile: "",
-            payMessage: "",
-            paymentConfig: {
-                paymentDialect: "payment_field_Kuda",
-                paymentName: "Kuda",
-                paymentTemplateItem: [],
-                paymentType: 0
-            },
-            paymentExt1: "",
-            paymentExt2: "",
-            paymentExt3: "",
-            paymentExt4: "",
-            paymentExt5: "",
-            paymentExt6: "",
-            paymentTemplateVersion: 0,
-            paymentType: 0,
-            qrcode: "",
-            realName: "MUHSIN CO GAMBO",
-            realNameVerified: true,
-            secondLastName: "",
-            visible: 0
-        }
-    ]
-};
-
-
-
-                const res = await fetch(`https://159.65.49.40/api/ad-price-limit`, {
+                const res = await fetch(`${API_URL}/ad-price-limit`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -608,6 +527,9 @@ const payload = {
             document.getElementById('merchantPrice').innerHTML = referencePrice;
             document.getElementById('trackingStatus').innerHTML = 'Ready — press Start';
 
+            // The info panel now reflects the ad that will actually be edited
+            renderAdPanel(activeAd());
+
             trackingToggleBtn.disabled = false;
 
             toast(`${selectedMerchantName} selected. Press Start to begin tracking.`);
@@ -619,6 +541,11 @@ const payload = {
         trackingToggleBtn.addEventListener('click', async function () {
             if (!selectedMerchantId) {
                 toast('Select a merchant first.', 'error');
+                return;
+            }
+
+            if (!activeAd()) {
+                toast(adMissingMessage(), 'error');
                 return;
             }
 
@@ -687,169 +614,28 @@ const payload = {
         /*
         |------------------------------------------------------------------------
         | Direct fetch of TOPPER price limit (no side-effects, no re-entrancy)
+        | Always queries the TOPPER ad.
         |------------------------------------------------------------------------
         */
         async function fetchTopperPriceDirect() {
-            const adId = document.getElementById('adId').value;
-            if (!adId) return null;
+            if (!topperAd) return null;
 
-            const ad = adsData.find(x => String(x.id) === String(adId));
-            if (!ad) return null;
-
-            /*
             const payload = {
                 api_key: API_KEY,
                 api_secret: API_SECRET,
-                id: ad.id,
+                id: topperAd.id,
                 price: "999999999",
-                priceType: ad.priceType !== undefined ? ad.priceType : 0,
-                premium: ad.premium !== undefined ? ad.premium : 0,
-                minAmount: ad.minAmount,
-                maxAmount: ad.maxAmount,
-                lastQuantity: ad.lastQuantity,
-                paymentPeriod: ad.paymentPeriod,
-                paymentTerms: ad.paymentTerms,
-                tradingPreferenceSet: ad.tradingPreferenceSet
+                priceType: topperAd.priceType !== undefined ? topperAd.priceType : 0,
+                premium: topperAd.premium !== undefined ? topperAd.premium : 0,
+                minAmount: topperAd.minAmount,
+                maxAmount: topperAd.maxAmount,
+                lastQuantity: topperAd.lastQuantity,
+                paymentPeriod: topperAd.paymentPeriod,
+                paymentTerms: topperAd.paymentTerms,
+                tradingPreferenceSet: topperAd.tradingPreferenceSet
             };
-            */
 
-            
-const payload = {
-    api_key: "a0LQmWHOuPeDDtiRty",
-    api_secret: "Dtxu4Q6ptLNVWXO1QRsKkeeJrc48teTiNzvh",
-    id: "2033569216634241024",
-    price: "999999999",
-    priceType: 0,
-    premium: "0",
-    minAmount: "2.000",
-    maxAmount: "100000.000",
-    lastQuantity: "1.99908317",
-    paymentPeriod: 30,
-
-    paymentTerms: [
-        // FAIRMoney MFB / BANK TRANSFER
-        {
-            accountNo: "",
-            bankName: "Fairmoney MFB",
-            branchName: "",
-            businessName: "",
-            clabe: "",
-            concept: "",
-            debitCardNumber: "",
-            firstName: "",
-            id: "23135366",
-            lastName: "",
-            mobile: "",
-            payMessage: "",
-            paymentConfig: {
-                paymentDialect: "payment_field_14",
-                paymentName: "Bank Transfer",
-                paymentTemplateItem: [
-                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
-                    { fieldName: "bankName", labelDialect: "input_field_bankName", placeholderDialect: "input_tip_bankName" },
-                    { fieldName: "branchName", labelDialect: "input_field_branchName", placeholderDialect: "input_tip_branchName" },
-                    { fieldName: "accountNo", labelDialect: "input_field_cardnumber", placeholderDialect: "input_tip_accountNo2" },
-                    { fieldName: "mobile", labelDialect: "input_field_mobilenumber", placeholderDialect: "input_tip_phonenumber" },
-                    { fieldName: "payMessage", labelDialect: "input_field_IBAN", placeholderDialect: "input_tip_iban" },
-                    { fieldName: "paymentExt1", labelDialect: "input_field_payMessage", placeholderDialect: "input_tip_payMessage" },
-                    { fieldName: "qrcode", labelDialect: "input_field_qrcode", placeholderDialect: "input_tip_qrcode" },
-                    { fieldName: "paymentExt2", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" }
-                ],
-                paymentType: 14
-            },
-            paymentExt1: "",
-            paymentExt2: "9154061711",
-            paymentExt3: "",
-            paymentExt4: "",
-            paymentExt5: "",
-            paymentExt6: "",
-            paymentTemplateVersion: 12,
-            paymentType: 14,
-            qrcode: "",
-            realName: "MUHSIN CO GAMBO",
-            realNameVerified: true,
-            secondLastName: "",
-            visible: 0
-        },
-
-        // OPAY
-        {
-            accountNo: "9027071752",
-            bankName: "",
-            branchName: "",
-            businessName: "",
-            clabe: "",
-            concept: "",
-            debitCardNumber: "",
-            firstName: "",
-            id: "23135374",
-            lastName: "",
-            mobile: "",
-            payMessage: "",
-            paymentConfig: {
-                paymentDialect: "payment_field_Opay",
-                paymentName: "Opay",
-                paymentTemplateItem: [
-                    { fieldName: "realName", labelDialect: "input_field_realName", placeholderDialect: "input_tip_realName" },
-                    { fieldName: "accountNo", labelDialect: "input_field_accountNo", placeholderDialect: "input_tip_accountNo" },
-                    { fieldName: "paymentExt1", labelDialect: "input_field_paymentExt2", placeholderDialect: "input_tip_paymentExt2" }
-                ],
-                paymentType: 520
-            },
-            paymentExt1: "personal ",
-            paymentExt2: "",
-            paymentExt3: "",
-            paymentExt4: "",
-            paymentExt5: "",
-            paymentExt6: "",
-            paymentTemplateVersion: 6,
-            paymentType: 520,
-            qrcode: "",
-            realName: "MUHSIN CO GAMBO",
-            realNameVerified: true,
-            secondLastName: "",
-            visible: 0
-        },
-
-        // KUDA
-        {
-            accountNo: "000",
-            bankName: "",
-            branchName: "",
-            businessName: "",
-            clabe: "",
-            concept: "",
-            debitCardNumber: "",
-            firstName: "",
-            id: "23135404",
-            lastName: "",
-            mobile: "",
-            payMessage: "",
-            paymentConfig: {
-                paymentDialect: "payment_field_Kuda",
-                paymentName: "Kuda",
-                paymentTemplateItem: [],
-                paymentType: 0
-            },
-            paymentExt1: "",
-            paymentExt2: "",
-            paymentExt3: "",
-            paymentExt4: "",
-            paymentExt5: "",
-            paymentExt6: "",
-            paymentTemplateVersion: 0,
-            paymentType: 0,
-            qrcode: "",
-            realName: "MUHSIN CO GAMBO",
-            realNameVerified: true,
-            secondLastName: "",
-            visible: 0
-        }
-    ]
-};
-
-
-            const res = await fetch(`https://159.65.49.40/api/ad-price-limit`, {
+            const res = await fetch(`${API_URL}/ad-price-limit`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -969,18 +755,19 @@ const payload = {
         /*
         |------------------------------------------------------------------------
         | Update Advertisement (With Exponential Backoff Retry)
-        |------------------------------------------------------------------------
-        | The old version used `while (true)` with a fixed 1-second sleep, which
-        | hammered Bybit every second on failure and made rate-limiting worse.
-        | This version:
-        |   - Bails immediately if a newer price target supersedes this one.
-        |   - Retries with exponential backoff: 2s, 4s, 8s, 16s, 32s (max 5).
-        |   - Stops retrying if tracking was turned off.
-        |   - Skips the request entirely if the target price hasn't changed
-        |     since the last successful update (no duplicate writes).
+        | Edits the ad matching the current tracking mode:
+        |   - Tracking TOPPER-BTC        -> the TOPPER Ad
+        |   - Tracking any other merchant -> the Competitor Ad
         |------------------------------------------------------------------------
         */
         async function updateAdPrice(newPrice) {
+            const ad = activeAd();
+
+            if (!ad) {
+                toast(adMissingMessage(), 'error');
+                return;
+            }
+
             targetAdPrice = newPrice;
             if (updatingAd) return;
             updatingAd = true;
@@ -1008,16 +795,16 @@ const payload = {
                     return;
                 }
 
-                const ad = adsData.find(x => String(x.id) === String(document.getElementById('adId').value));
-                if (!ad) {
+                const currentAd = activeAd();
+                if (!currentAd) {
                     updatingAd = false;
-                    toast('Please select your Ad first.', 'error');
+                    toast(adMissingMessage(), 'error');
                     return;
                 }
 
                 const priceToUpdate = targetAdPrice;
                 const payload = {
-                    ...ad,
+                    ...currentAd,
                     price: priceToUpdate,
                     api_key: API_KEY,
                     api_secret: API_SECRET
@@ -1033,7 +820,7 @@ const payload = {
                     const result = await res.json();
 
                     if (res.ok && !result.error) {
-                        ad.price = priceToUpdate;
+                        currentAd.price = priceToUpdate;
                         lastUpdatedPrice = priceToUpdate;
                         document.getElementById('currentPrice').innerHTML = priceToUpdate;
                         toast(`Ad updated to ${priceToUpdate}`);

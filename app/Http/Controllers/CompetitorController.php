@@ -17,7 +17,8 @@ class CompetitorController extends Controller
     public function competitorpro()
     {
         $competitors = Competitor::first();
-        return view('payments.competitorpro', compact('competitors'));
+        $users = User::all();
+        return view('payments.competitorpro', compact('competitors', 'users'));
     }
 
     public function switchmerchant()
