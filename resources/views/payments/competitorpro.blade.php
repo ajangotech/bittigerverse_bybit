@@ -222,6 +222,17 @@
         let targetAdPrice = null;
         let plusFetching = false;
 
+        // Abort controller for the in-flight /ad-price-limit request, so an
+        // update can stop it immediately instead of racing it (rate limits).
+        let topperAbortController = null;
+
+        function abortTopperRequest() {
+            if (topperAbortController) {
+                topperAbortController.abort();
+                topperAbortController = null;
+            }
+        }
+
         const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
         function toast(message, type = 'success') {
@@ -411,7 +422,12 @@
         async function fetchTopperPrice() {
             if (!topperAd) return;
 
+            // Pause while an /update-ad request is running (avoids request conflicts)
+            if (updatingAd) return;
+
             try {
+                abortTopperRequest();
+                topperAbortController = new AbortController();
 
                 const payload = {
                     api_key: API_KEY,
@@ -434,6 +450,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}'
                     },
+                    signal: topperAbortController.signal,
                     body: JSON.stringify(payload)
                 });
 
@@ -464,6 +481,8 @@
 
 
             } catch (e) {
+                // Aborted because an /update-ad started — not an error
+                if (e.name === 'AbortError') return;
                 console.log("Failed to fetch Topper limit:", e);
             }
         }
@@ -619,6 +638,7 @@
         */
         async function fetchTopperPriceDirect() {
             if (!topperAd) return null;
+            if (updatingAd) return null;
 
             const payload = {
                 api_key: API_KEY,
@@ -635,12 +655,16 @@
                 tradingPreferenceSet: topperAd.tradingPreferenceSet
             };
 
+            abortTopperRequest();
+            topperAbortController = new AbortController();
+
             const res = await fetch(`${API_URL}/ad-price-limit`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': '{{ csrf_token() }}'
                 },
+                signal: topperAbortController.signal,
                 body: JSON.stringify(payload)
             });
 
@@ -757,8 +781,19 @@
         | Update Advertisement (With Exponential Backoff Retry)
         | ALWAYS edits the Competitor (My Advertisement) ad — the TOPPER ad
         | is only used to read the limit price and is never modified.
+        |
+        | While this runs, ALL /ad-price-limit requests are stopped: the
+        | polling loop is gated on `updatingAd` and any in-flight request is
+        | aborted. When the update finishes, the price-limit loop resumes
+        | immediately via finishUpdate().
         |------------------------------------------------------------------------
         */
+        function finishUpdate() {
+            updatingAd = false;
+            // Update complete — continue the price-limit loop right away
+            fetchTopperPrice();
+        }
+
         async function updateAdPrice(newPrice) {
             const ad = activeAd();
 
@@ -771,6 +806,9 @@
             if (updatingAd) return;
             updatingAd = true;
 
+            // Immediately stop any in-flight /ad-price-limit request
+            abortTopperRequest();
+
             let lastUpdatedPrice = null;
             let retryDelay = 2000; // start at 2 seconds
             const maxRetries = 5;
@@ -778,25 +816,25 @@
             for (let attempt = 0; attempt < maxRetries; attempt++) {
                 // Bail if tracking was stopped
                 if (!tracking) {
-                    updatingAd = false;
+                    finishUpdate();
                     return;
                 }
 
                 // Bail if a newer price target superseded this one
                 if (targetAdPrice !== newPrice) {
-                    updatingAd = false;
+                    finishUpdate();
                     return;
                 }
 
                 // Skip if the price hasn't changed since the last successful write
                 if (lastUpdatedPrice === newPrice) {
-                    updatingAd = false;
+                    finishUpdate();
                     return;
                 }
 
                 const currentAd = activeAd();
                 if (!currentAd) {
-                    updatingAd = false;
+                    finishUpdate();
                     toast(adMissingMessage(), 'error');
                     return;
                 }
@@ -826,7 +864,7 @@
 
                         // If target hasn't changed, we're done
                         if (targetAdPrice === priceToUpdate) {
-                            updatingAd = false;
+                            finishUpdate();
                             return;
                         }
                         // Target changed — loop again with the new target
@@ -849,7 +887,7 @@
             if (tracking) {
                 toast('Ad update failed after multiple retries. Will try again on next price change.', 'error');
             }
-            updatingAd = false;
+            finishUpdate();
         }
 
         /*
