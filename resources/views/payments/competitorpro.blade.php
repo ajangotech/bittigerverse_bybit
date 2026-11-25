@@ -65,12 +65,12 @@
                         My Advertisements
                     </h5>
 
-                    <label class="small text-muted mb-1">TOPPER Ad <span class="text-danger">(used when tracking TOPPER-BTC)</span>:</label>
+                    <label class="small text-muted mb-1">TOPPER Ad <span class="text-danger">(read-only: price-limit source)</span>:</label>
                     <select class="form-select form-select-lg mb-3" id="topperAdsSelect">
                         <option value="">Loading...</option>
                     </select>
 
-                    <label class="small text-muted mb-1">Competitor Ad <span class="text-danger">(used when tracking other merchants)</span>:</label>
+                    <label class="small text-muted mb-1">My Advertisement Ad <span class="text-danger">(the only ad that gets updated)</span>:</label>
                     <select class="form-select form-select-lg mb-4" id="competitorAdsSelect">
                         <option value="">Loading...</option>
                     </select>
@@ -233,17 +233,17 @@
 
         /*
         |------------------------------------------------------------------------
-        | Active ad helper — which ad is in play depends on the merchant
+        | Active ad helper — the ad that gets UPDATED is always the
+        | Competitor (My Advertisement) ad. The TOPPER ad is only read from
+        | (price-limit checks), it is never edited.
         |------------------------------------------------------------------------
         */
         function activeAd() {
-            return selectedMerchantId === 'TOPPER-BTC' ? topperAd : competitorAd;
+            return competitorAd;
         }
 
         function adMissingMessage() {
-            return selectedMerchantId === 'TOPPER-BTC'
-                ? 'Please select a TOPPER Ad first.'
-                : 'Please select a Competitor Ad first.';
+            return 'Please select a Competitor Ad (My Advertisement) first.';
         }
 
         function renderAdPanel(ad) {
@@ -257,9 +257,7 @@
                 return;
             }
 
-            const label = (selectedMerchantId === 'TOPPER-BTC')
-                ? `TOPPER Ad (#${ad.id})`
-                : `Competitor Ad (#${ad.id})`;
+            const label = `My Advertisement (#${ad.id})`;
 
             document.getElementById('activeAdLabel').innerHTML = label;
             document.getElementById('pairText').innerHTML = `${ad.tokenId}/${ad.currencyId}`;
@@ -372,29 +370,30 @@
             const ad = adsData.find(x => String(x.id) === String(selectEl.value));
 
             if (which === 'topper') {
+                // TOPPER ad is read-only: it only feeds the price-limit check.
+                // Changing it must NOT touch the tracked merchant or tracking state.
                 topperAd = ad || null;
-            } else {
-                competitorAd = ad || null;
+
+                if (ad) {
+                    selectedToken = ad.tokenId;
+                    selectedCurrency = ad.currencyId;
+                    fetchTopperPrice();
+                    await fetchCompetitors();
+                }
+                return;
             }
+
+            competitorAd = ad || null;
 
             resetMerchantTrackingState();
 
             if (!ad) {
-                selectedToken = null;
-                selectedCurrency = null;
                 renderAdPanel(null);
                 merchantSelect.innerHTML = `<option value="">Select Advertisement First</option>`;
                 return;
             }
 
-            // The TOPPER price-limit check is driven by the TOPPER ad's pair
-            if (which === 'topper') {
-                selectedToken = ad.tokenId;
-                selectedCurrency = ad.currencyId;
-            }
-
-            // Show the ad that is relevant to the current tracking mode
-            renderAdPanel(activeAd() || ad);
+            renderAdPanel(competitorAd);
 
             fetchTopperPrice();
             await fetchCompetitors();
@@ -405,7 +404,8 @@
 
         /*
         |------------------------------------------------------------------------
-        | Fetch TOPPER-BTC Price (1-Second API Check) — uses the TOPPER ad
+        | Fetch TOPPER-BTC Price (1-Second API Check) — reads the TOPPER ad.
+        | This NEVER updates the TOPPER ad, it only discovers the limit price.
         |------------------------------------------------------------------------
         */
         async function fetchTopperPrice() {
@@ -614,7 +614,7 @@
         /*
         |------------------------------------------------------------------------
         | Direct fetch of TOPPER price limit (no side-effects, no re-entrancy)
-        | Always queries the TOPPER ad.
+        | Always queries the TOPPER ad (read-only).
         |------------------------------------------------------------------------
         */
         async function fetchTopperPriceDirect() {
@@ -755,9 +755,8 @@
         /*
         |------------------------------------------------------------------------
         | Update Advertisement (With Exponential Backoff Retry)
-        | Edits the ad matching the current tracking mode:
-        |   - Tracking TOPPER-BTC        -> the TOPPER Ad
-        |   - Tracking any other merchant -> the Competitor Ad
+        | ALWAYS edits the Competitor (My Advertisement) ad — the TOPPER ad
+        | is only used to read the limit price and is never modified.
         |------------------------------------------------------------------------
         */
         async function updateAdPrice(newPrice) {
