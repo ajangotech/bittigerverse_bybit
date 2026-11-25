@@ -770,7 +770,7 @@
 
         /*
         |------------------------------------------------------------------------
-        | Update Advertisement (With Exponential Backoff Retry)
+        | Update Advertisement (Retry every 0.5s until it updates)
         | ALWAYS edits the Competitor (My Advertisement) ad.
         |
         | While this runs, ALL /ad-price-limit requests are stopped: the
@@ -809,10 +809,9 @@
             abortTopperRequest();
 
             let lastUpdatedPrice = null;
-            let retryDelay = 2000; // start at 2 seconds
-            const maxRetries = 5;
+            const retryDelay = 500; // fixed 0.5 seconds, retry until it updates
 
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
+            while (true) {
                 // Bail if tracking was stopped
                 if (!tracking) {
                     finishUpdate();
@@ -868,25 +867,17 @@
                         }
                         // Target changed — loop again with the new target
                         newPrice = targetAdPrice;
-                        retryDelay = 2000;
+                        continue;
                     } else {
-                        // 429 = rate limited, or other error — back off
-                        toast(`Update failed, retrying in ${retryDelay / 1000}s...`, 'error');
+                        // Failed — retry in 0.5 seconds until it updates
+                        toast(`Update failed, retrying in 0.5s...`, 'error');
                         await sleep(retryDelay);
-                        retryDelay = Math.min(retryDelay * 2, 32000);
                     }
                 } catch (e) {
-                    toast(`Network error, retrying in ${retryDelay / 1000}s...`, 'error');
+                    toast(`Network error, retrying in 0.5s...`, 'error');
                     await sleep(retryDelay);
-                    retryDelay = Math.min(retryDelay * 2, 32000);
                 }
             }
-
-            // Exhausted retries
-            if (tracking) {
-                toast('Ad update failed after multiple retries. Will try again on next price change.', 'error');
-            }
-            finishUpdate();
         }
 
         /*
