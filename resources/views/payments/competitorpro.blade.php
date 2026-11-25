@@ -371,7 +371,9 @@
                 };
                 */
 
-                const payload = {
+                
+                
+const payload = {
     api_key: "a0LQmWHOuPeDDtiRty",
     api_secret: "Dtxu4Q6ptLNVWXO1QRsKkeeJrc48teTiNzvh",
     id: "2033569216634241024",
@@ -384,6 +386,7 @@
     paymentPeriod: 30,
 
     paymentTerms: [
+        // FAIRMoney MFB / BANK TRANSFER
         {
             accountNo: "",
             bankName: "Fairmoney MFB",
@@ -428,6 +431,7 @@
             visible: 0
         },
 
+        // OPAY
         {
             accountNo: "9027071752",
             bankName: "",
@@ -466,6 +470,7 @@
             visible: 0
         },
 
+        // KUDA
         {
             accountNo: "000",
             bankName: "",
@@ -501,6 +506,8 @@
         }
     ]
 };
+
+
 
                 const res = await fetch(`https://159.65.49.40/api/ad-price-limit`, {
                     method: 'POST',
@@ -706,7 +713,8 @@
             };
             */
 
-            const payload = {
+            
+const payload = {
     api_key: "a0LQmWHOuPeDDtiRty",
     api_secret: "Dtxu4Q6ptLNVWXO1QRsKkeeJrc48teTiNzvh",
     id: "2033569216634241024",
@@ -719,6 +727,7 @@
     paymentPeriod: 30,
 
     paymentTerms: [
+        // FAIRMoney MFB / BANK TRANSFER
         {
             accountNo: "",
             bankName: "Fairmoney MFB",
@@ -763,6 +772,7 @@
             visible: 0
         },
 
+        // OPAY
         {
             accountNo: "9027071752",
             bankName: "",
@@ -801,6 +811,7 @@
             visible: 0
         },
 
+        // KUDA
         {
             accountNo: "000",
             bankName: "",
@@ -836,6 +847,7 @@
         }
     ]
 };
+
 
             const res = await fetch(`https://159.65.49.40/api/ad-price-limit`, {
                 method: 'POST',
