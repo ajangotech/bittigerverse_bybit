@@ -226,6 +226,16 @@
         // update can stop it immediately instead of racing it (rate limits).
         let topperAbortController = null;
 
+        // Cooldown: no /ad-price-limit requests until this timestamp.
+        // Set to 3 seconds after every /update-ad completes.
+        const TOPPER_COOLDOWN_MS = 3000;
+        let topperCooldownUntil = 0;
+        let topperCooldownResumeTimer = null;
+
+        function isTopperCoolingDown() {
+            return Date.now() < topperCooldownUntil;
+        }
+
         function abortTopperRequest() {
             if (topperAbortController) {
                 topperAbortController.abort();
@@ -422,8 +432,8 @@
         async function fetchTopperPrice() {
             if (!topperAd) return;
 
-            // Pause while an /update-ad request is running (avoids request conflicts)
-            if (updatingAd) return;
+            // Pause while an /update-ad request runs or during its 3s cooldown
+            if (updatingAd || isTopperCoolingDown()) return;
 
             try {
                 abortTopperRequest();
@@ -638,7 +648,7 @@
         */
         async function fetchTopperPriceDirect() {
             if (!topperAd) return null;
-            if (updatingAd) return null;
+            if (updatingAd || isTopperCoolingDown()) return null;
 
             const payload = {
                 api_key: API_KEY,
@@ -784,14 +794,22 @@
         |
         | While this runs, ALL /ad-price-limit requests are stopped: the
         | polling loop is gated on `updatingAd` and any in-flight request is
-        | aborted. When the update finishes, the price-limit loop resumes
-        | immediately via finishUpdate().
+        | aborted. After the update finishes, a 3-second cooldown holds the
+        | price-limit loop before it resumes automatically.
         |------------------------------------------------------------------------
         */
         function finishUpdate() {
             updatingAd = false;
-            // Update complete — continue the price-limit loop right away
-            fetchTopperPrice();
+
+            // Hold price-limit requests for 3 more seconds after the update,
+            // then resume the loop immediately on expiry.
+            topperCooldownUntil = Date.now() + TOPPER_COOLDOWN_MS;
+
+            if (topperCooldownResumeTimer) clearTimeout(topperCooldownResumeTimer);
+            topperCooldownResumeTimer = setTimeout(() => {
+                topperCooldownResumeTimer = null;
+                if (!updatingAd) fetchTopperPrice();
+            }, TOPPER_COOLDOWN_MS);
         }
 
         async function updateAdPrice(newPrice) {
