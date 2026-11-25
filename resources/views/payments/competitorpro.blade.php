@@ -770,7 +770,7 @@
 
         /*
         |------------------------------------------------------------------------
-        | Update Advertisement (Retry every 0.5s until it updates)
+        | Update Advertisement (Retry every 0.2s until it updates)
         | ALWAYS edits the Competitor (My Advertisement) ad.
         |
         | While this runs, ALL /ad-price-limit requests are stopped: the
@@ -809,7 +809,7 @@
             abortTopperRequest();
 
             let lastUpdatedPrice = null;
-            const retryDelay = 500; // fixed 0.5 seconds, retry until it updates
+            const retryDelay = 200; // fixed 0.2 seconds, retry until it updates
 
             while (true) {
                 // Bail if tracking was stopped
@@ -869,12 +869,12 @@
                         newPrice = targetAdPrice;
                         continue;
                     } else {
-                        // Failed — retry in 0.5 seconds until it updates
-                        toast(`Update failed, retrying in 0.5s...`, 'error');
+                        // Failed — retry in 0.2 seconds until it updates
+                        toast(`Update failed, retrying in 0.2s...`, 'error');
                         await sleep(retryDelay);
                     }
                 } catch (e) {
-                    toast(`Network error, retrying in 0.5s...`, 'error');
+                    toast(`Network error, retrying in 0.2s...`, 'error');
                     await sleep(retryDelay);
                 }
             }
