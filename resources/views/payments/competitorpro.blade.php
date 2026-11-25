@@ -65,15 +65,12 @@
                         My Advertisements
                     </h5>
 
-                    <label class="small text-muted mb-1">TOPPER Ad <span class="text-danger">(read-only: price-limit source)</span>:</label>
-                    <select class="form-select form-select-lg mb-3" id="topperAdsSelect">
-                        <option value="">Loading...</option>
-                    </select>
-
                     <label class="small text-muted mb-1">My Advertisement Ad <span class="text-danger">(the only ad that gets updated)</span>:</label>
                     <select class="form-select form-select-lg mb-4" id="competitorAdsSelect">
                         <option value="">Loading...</option>
                     </select>
+
+                    <input type="hidden" id="adId">
 
                     <div class="border rounded p-3">
                         <p><b>Active Ad:</b> <span id="activeAdLabel" class="text-danger fw-bold">---</span></p>
@@ -174,7 +171,6 @@
         const API_KEY = "{{ auth()->user()->bybit_api_key }}";
         const API_SECRET = "{{ auth()->user()->bybit_api_secret }}";
 
-        const topperAdsSelect = document.getElementById('topperAdsSelect');
         const competitorAdsSelect = document.getElementById('competitorAdsSelect');
         const merchantSelect = document.getElementById('merchantSelect');
         const plusModeToggle = document.getElementById('plusModeToggle');
@@ -192,10 +188,7 @@
         let adsData = [];
         let competitors = [];
 
-        // Two separate ad selections:
-        //   topperAd      -> used for all TOPPER-BTC tracking requests
-        //   competitorAd  -> used for every other (non-TOPPER) merchant request
-        let topperAd = null;
+        // The single selected ad is used for BOTH price-limit reads and updates.
         let competitorAd = null;
 
         // Special TOPPER-BTC Merchant Object
@@ -254,9 +247,7 @@
 
         /*
         |------------------------------------------------------------------------
-        | Active ad helper — the ad that gets UPDATED is always the
-        | Competitor (My Advertisement) ad. The TOPPER ad is only read from
-        | (price-limit checks), it is never edited.
+        | Active ad helper — the ad that gets read (price-limit) AND updated.
         |------------------------------------------------------------------------
         */
         function activeAd() {
@@ -334,7 +325,7 @@
 
         /*
         |------------------------------------------------------------------------
-        | Load Advertisements (fills BOTH dropdowns)
+        | Load Advertisements
         |------------------------------------------------------------------------
         */
         async function loadAds() {
@@ -347,14 +338,14 @@
                 const data = await res.json();
                 adsData = data?.result?.items || [];
 
-                const optionsHtml = adsData.map(ad => `
-                    <option value="${ad.id}">
-                        ${ad.tokenId}/${ad.currencyId} | ${ad.price}
-                    </option>
-                `).join('');
-
-                topperAdsSelect.innerHTML = `<option value="">Select TOPPER Ad</option>` + optionsHtml;
-                competitorAdsSelect.innerHTML = `<option value="">Select Competitor Ad</option>` + optionsHtml;
+                competitorAdsSelect.innerHTML = `<option value="">Select Competitor Ad</option>`;
+                adsData.forEach(ad => {
+                    competitorAdsSelect.innerHTML += `
+                        <option value="${ad.id}">
+                            ${ad.tokenId}/${ad.currencyId} | ${ad.price}
+                        </option>
+                    `;
+                });
             } catch (e) {
                 console.log(e);
                 toast('Failed to load advertisements.', 'error');
@@ -364,7 +355,7 @@
 
         /*
         |------------------------------------------------------------------------
-        | Advertisement Selected (shared handler for both dropdowns)
+        | Advertisement Selected
         |------------------------------------------------------------------------
         */
         function resetMerchantTrackingState() {
@@ -386,51 +377,41 @@
             merchantSelect.innerHTML = `<option value="">Loading competitors...</option>`;
         }
 
-        async function onAdSelected(which) {
-            const selectEl = which === 'topper' ? topperAdsSelect : competitorAdsSelect;
-            const ad = adsData.find(x => String(x.id) === String(selectEl.value));
-
-            if (which === 'topper') {
-                // TOPPER ad is read-only: it only feeds the price-limit check.
-                // Changing it must NOT touch the tracked merchant or tracking state.
-                topperAd = ad || null;
-
-                if (ad) {
-                    selectedToken = ad.tokenId;
-                    selectedCurrency = ad.currencyId;
-                    fetchTopperPrice();
-                    await fetchCompetitors();
-                }
-                return;
-            }
+        competitorAdsSelect.addEventListener('change', async function () {
+            const ad = adsData.find(x => String(x.id) === String(this.value));
 
             competitorAd = ad || null;
 
             resetMerchantTrackingState();
 
             if (!ad) {
+                document.getElementById('adId').value = '';
+                selectedToken = null;
+                selectedCurrency = null;
                 renderAdPanel(null);
                 merchantSelect.innerHTML = `<option value="">Select Advertisement First</option>`;
                 return;
             }
 
+            selectedToken = ad.tokenId;
+            selectedCurrency = ad.currencyId;
+            document.getElementById('adId').value = ad.id;
+
             renderAdPanel(competitorAd);
 
             fetchTopperPrice();
             await fetchCompetitors();
-        }
-
-        topperAdsSelect.addEventListener('change', () => onAdSelected('topper'));
-        competitorAdsSelect.addEventListener('change', () => onAdSelected('competitor'));
+        });
 
         /*
         |------------------------------------------------------------------------
-        | Fetch TOPPER-BTC Price (1-Second API Check) — reads the TOPPER ad.
-        | This NEVER updates the TOPPER ad, it only discovers the limit price.
+        | Fetch TOPPER-BTC Price (1-Second API Check) — reads the selected ad
+        | to discover the limit price. This NEVER updates the ad.
         |------------------------------------------------------------------------
         */
         async function fetchTopperPrice() {
-            if (!topperAd) return;
+            const ad = activeAd();
+            if (!ad) return;
 
             // Pause while an /update-ad request runs or during its 3s cooldown
             if (updatingAd || isTopperCoolingDown()) return;
@@ -442,16 +423,16 @@
                 const payload = {
                     api_key: API_KEY,
                     api_secret: API_SECRET,
-                    id: topperAd.id,
+                    id: ad.id,
                     price: "999999999", // Static price
-                    priceType: topperAd.priceType !== undefined ? topperAd.priceType : 0,
-                    premium: topperAd.premium !== undefined ? topperAd.premium : 0,
-                    minAmount: topperAd.minAmount,
-                    maxAmount: topperAd.maxAmount,
-                    lastQuantity: topperAd.lastQuantity,
-                    paymentPeriod: topperAd.paymentPeriod,
-                    paymentTerms: topperAd.paymentTerms,
-                    tradingPreferenceSet: topperAd.tradingPreferenceSet
+                    priceType: ad.priceType !== undefined ? ad.priceType : 0,
+                    premium: ad.premium !== undefined ? ad.premium : 0,
+                    minAmount: ad.minAmount,
+                    maxAmount: ad.maxAmount,
+                    lastQuantity: ad.lastQuantity,
+                    paymentPeriod: ad.paymentPeriod,
+                    paymentTerms: ad.paymentTerms,
+                    tradingPreferenceSet: ad.tradingPreferenceSet
                 };
 
                 const res = await fetch(`${API_URL}/ad-price-limit`, {
@@ -643,26 +624,27 @@
         /*
         |------------------------------------------------------------------------
         | Direct fetch of TOPPER price limit (no side-effects, no re-entrancy)
-        | Always queries the TOPPER ad (read-only).
+        | Always queries the selected ad (read-only).
         |------------------------------------------------------------------------
         */
         async function fetchTopperPriceDirect() {
-            if (!topperAd) return null;
+            const ad = activeAd();
+            if (!ad) return null;
             if (updatingAd || isTopperCoolingDown()) return null;
 
             const payload = {
                 api_key: API_KEY,
                 api_secret: API_SECRET,
-                id: topperAd.id,
+                id: ad.id,
                 price: "999999999",
-                priceType: topperAd.priceType !== undefined ? topperAd.priceType : 0,
-                premium: topperAd.premium !== undefined ? topperAd.premium : 0,
-                minAmount: topperAd.minAmount,
-                maxAmount: topperAd.maxAmount,
-                lastQuantity: topperAd.lastQuantity,
-                paymentPeriod: topperAd.paymentPeriod,
-                paymentTerms: topperAd.paymentTerms,
-                tradingPreferenceSet: topperAd.tradingPreferenceSet
+                priceType: ad.priceType !== undefined ? ad.priceType : 0,
+                premium: ad.premium !== undefined ? ad.premium : 0,
+                minAmount: ad.minAmount,
+                maxAmount: ad.maxAmount,
+                lastQuantity: ad.lastQuantity,
+                paymentPeriod: ad.paymentPeriod,
+                paymentTerms: ad.paymentTerms,
+                tradingPreferenceSet: ad.tradingPreferenceSet
             };
 
             abortTopperRequest();
@@ -789,8 +771,7 @@
         /*
         |------------------------------------------------------------------------
         | Update Advertisement (With Exponential Backoff Retry)
-        | ALWAYS edits the Competitor (My Advertisement) ad — the TOPPER ad
-        | is only used to read the limit price and is never modified.
+        | ALWAYS edits the Competitor (My Advertisement) ad.
         |
         | While this runs, ALL /ad-price-limit requests are stopped: the
         | polling loop is gated on `updatingAd` and any in-flight request is
