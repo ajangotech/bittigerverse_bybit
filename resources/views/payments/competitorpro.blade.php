@@ -818,10 +818,11 @@
                     return;
                 }
 
-                // Bail if a newer price target superseded this one
+                // A newer price target superseded this one — adopt it and
+                // keep retrying. Do NOT release the update lock or start the
+                // cooldown, since the ad has not been successfully updated yet.
                 if (targetAdPrice !== newPrice) {
-                    finishUpdate();
-                    return;
+                    newPrice = targetAdPrice;
                 }
 
                 // Skip if the price hasn't changed since the last successful write
@@ -859,15 +860,9 @@
                         lastUpdatedPrice = priceToUpdate;
                         document.getElementById('currentPrice').innerHTML = priceToUpdate;
                         toast(`Ad updated to ${priceToUpdate}`);
-
-                        // If target hasn't changed, we're done
-                        if (targetAdPrice === priceToUpdate) {
-                            finishUpdate();
-                            return;
-                        }
-                        // Target changed — loop again with the new target
-                        newPrice = targetAdPrice;
-                        continue;
+                        // Update succeeded — release the lock and start the cooldown.
+                        finishUpdate();
+                        return;
                     } else {
                         // Failed — retry in 0.2 seconds until it updates
                         toast(`Update failed, retrying in 0.2s...`, 'error');
